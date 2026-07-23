@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
 import { generateWhatsAppLink } from '../lib/whatsapp';
 import { Tenant } from '../types';
-import { X, Plus, Minus, Trash2, Send } from 'lucide-react';
+import { X, Plus, Minus, Trash2, Send, Sparkles } from 'lucide-react';
 
 interface CartModalProps {
   isOpen: boolean;
@@ -12,19 +12,42 @@ interface CartModalProps {
   tenant: Tenant;
 }
 
+const CUSTOMER_DATA_KEY = 'valle_real_customer_info';
+
 export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
   const { items, updateQuantity, removeFromCart, clearCart, subtotal } = useCart();
-  
+
   const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
   const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
   const [orderNotes, setOrderNotes] = useState('');
+  const [hasSavedData, setHasSavedData] = useState(false);
+
+  // Cargar datos previos del cliente si existen al abrir el modal
+  useEffect(() => {
+    if (isOpen) {
+      const savedData = localStorage.getItem(CUSTOMER_DATA_KEY);
+      if (savedData) {
+        try {
+          const { name, address: savedAddress, notes } = JSON.parse(savedData);
+          if (name) setCustomerName(name);
+          if (savedAddress) setAddress(savedAddress);
+          if (notes) setOrderNotes(notes);
+          setHasSavedData(true);
+        } catch (e) {
+          console.error('Error al cargar datos guardados:', e);
+        }
+      }
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const isDelivery = deliveryType === 'delivery';
   const deliveryFee = isDelivery
-    ? (subtotal >= tenant.free_delivery_min_amount ? 0 : tenant.delivery_fee)
+    ? subtotal >= tenant.free_delivery_min_amount
+      ? 0
+      : tenant.delivery_fee
     : 0;
   const total = subtotal + deliveryFee;
 
@@ -40,6 +63,14 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
       alert('Por favor ingresa tu dirección de entrega.');
       return;
     }
+
+    // Guardar datos en localStorage para compras futuras
+    const customerDataToSave = {
+      name: customerName.trim(),
+      address: address.trim(),
+      notes: orderNotes.trim(),
+    };
+    localStorage.setItem(CUSTOMER_DATA_KEY, JSON.stringify(customerDataToSave));
 
     const whatsappUrl = generateWhatsAppLink(
       tenant,
@@ -62,7 +93,6 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-end sm:items-center p-0 sm:p-4">
       <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in slide-in-from-bottom duration-200">
-        
         {/* Header del Modal */}
         <div className="flex justify-between items-center p-4 border-b">
           <h2 className="text-lg font-bold text-gray-900">Tu Pedido</h2>
@@ -85,7 +115,8 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
               {/* Lista de productos en carrito */}
               <div className="space-y-3">
                 {items.map((item, index) => {
-                  const price = item.selectedVariant?.price_override ?? item.product.price;
+                  const price =
+                    item.selectedVariant?.price_override ?? item.product.price;
                   return (
                     <div
                       key={index}
@@ -135,8 +166,11 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
               </div>
 
               {/* Formulario de cliente y entrega */}
-              <form id="order-form" onSubmit={handleSendOrder} className="space-y-4 border-t pt-4">
-                
+              <form
+                id="order-form"
+                onSubmit={handleSendOrder}
+                className="space-y-4 border-t pt-4"
+              >
                 {/* Tipo de Servicio */}
                 <div>
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider block mb-2">
@@ -168,7 +202,15 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
                   </div>
                 </div>
 
-                {/* Campos de texto con fix de legibilidad */}
+                {/* Badge de cortesía cuando los datos venían guardados */}
+                {hasSavedData && (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] p-2.5 rounded-xl font-medium flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Cargamos tu dirección anterior para pedir más rápido.</span>
+                  </div>
+                )}
+
+                {/* Campos de texto */}
                 <div>
                   <label className="text-xs font-semibold text-gray-700 block mb-1">
                     Tu Nombre *
@@ -217,7 +259,9 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
               <div className="bg-gray-50 p-3 rounded-xl space-y-1.5 text-xs text-gray-600 border">
                 <div className="flex justify-between">
                   <span>Subtotal:</span>
-                  <span className="font-semibold text-gray-900">${subtotal.toFixed(2)}</span>
+                  <span className="font-semibold text-gray-900">
+                    ${subtotal.toFixed(2)}
+                  </span>
                 </div>
                 {isDelivery && (
                   <div className="flex justify-between">
