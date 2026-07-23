@@ -1,0 +1,16 @@
+{
+  "name": "Valle Real Comida",
+  "short_name": "ValleReal",
+  "description": "Pide directamente a tus locales favoritos sin comisiones",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#047857",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

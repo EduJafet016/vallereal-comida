@@ -13,6 +13,7 @@ import {
   UtensilsCrossed,
   ShieldCheck,
   Sparkles,
+  Download,
 } from 'lucide-react';
 import { isStoreOpen } from '@/lib/utils';
 import { AuthModal } from '@/app/components/AuthModal';
@@ -22,6 +23,50 @@ export default function RootHomePage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+
+  // Estados para la instalación PWA
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+
+  useEffect(() => {
+    // 1. Detectar si ya se está ejecutando como app instalada (modo standalone)
+    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+      setIsInstalled(true);
+    }
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    // 2. Detectar justo el momento en que el usuario completa la instalación
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+      }
+    } else {
+      alert(
+        "Para instalar la app:\n\n• En Android/Chrome: Abre el menú de los 3 puntos y selecciona 'Instalar aplicación' o 'Agregar a la pantalla principal'.\n• En iPhone/Safari: Toca el botón de Compartir y selecciona 'Agregar a inicio'."
+      );
+    }
+  };
 
   const fetchTenants = useCallback(async () => {
     try {
@@ -64,7 +109,7 @@ export default function RootHomePage() {
           } else if (payload.eventType === 'INSERT') {
             setTenants((prev) => [...prev, payload.new as Tenant]);
           } else if (payload.eventType === 'DELETE') {
-            setTenants((prev) => prev.filter((t) => t.id === payload.old.id));
+            setTenants((prev) => prev.filter((t) => t.id !== payload.old.id));
           }
         }
       )
@@ -75,7 +120,6 @@ export default function RootHomePage() {
     };
   }, []);
 
-  // 1. Filtrar por búsqueda y 2. Ordenar (Abiertos primero, luego Cerrados, y alfabéticamente)
   const filteredTenants = tenants
     .filter(
       (t) =>
@@ -86,17 +130,14 @@ export default function RootHomePage() {
       const aOpen = a.is_active ?? false;
       const bOpen = b.is_active ?? false;
 
-      // Si 'a' está abierto y 'b' cerrado, 'a' va primero (-1)
       if (aOpen && !bOpen) return -1;
-      // Si 'b' está abierto y 'a' cerrado, 'b' va primero (1)
       if (!aOpen && bOpen) return 1;
 
-      // Si ambos tienen el mismo estado, ordenamos alfabéticamente A-Z
       return a.name.localeCompare(b.name);
     });
 
   return (
-    <main className="min-h-screen bg-gray-50 flex flex-col justify-between pb-6">
+    <main className="min-h-screen bg-white flex flex-col justify-between pb-6">
       <div>
         <header className="bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 text-white pt-8 pb-10 px-4 rounded-b-[2.5rem] shadow-md">
           <div className="max-w-md mx-auto space-y-4">
@@ -105,12 +146,24 @@ export default function RootHomePage() {
                 <MapPin className="w-3 h-3 text-emerald-300" /> Valle Real
               </span>
 
-              <button
-                onClick={() => setIsAuthOpen(true)}
-                className="text-xs font-semibold text-emerald-100 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl transition-all border border-white/10 cursor-pointer"
-              >
-                Acceso Comerciantes
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Botón de instalación dinámico (desaparece si ya está instalada) */}
+                {!isInstalled && (
+                  <button
+                    onClick={handleInstallClick}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-950 bg-emerald-300 hover:bg-emerald-200 px-3 py-1.5 rounded-xl transition-all shadow-sm cursor-pointer animate-pulse"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Instalar App
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setIsAuthOpen(true)}
+                  className="text-xs font-semibold text-emerald-100 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl transition-all border border-white/10 cursor-pointer"
+                >
+                  Comerciantes
+                </button>
+              </div>
             </div>
 
             <div>
@@ -148,11 +201,11 @@ export default function RootHomePage() {
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-20 bg-white rounded-2xl border animate-pulse" />
+                <div key={i} className="h-20 bg-white rounded-2xl border border-gray-100 animate-pulse" />
               ))}
             </div>
           ) : filteredTenants.length === 0 ? (
-            <div className="bg-white rounded-2xl border p-8 text-center space-y-2">
+            <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center space-y-2">
               <p className="text-sm font-semibold text-gray-700">No se encontraron locales</p>
               <p className="text-xs text-gray-400">Intenta buscar con otra palabra clave.</p>
             </div>
@@ -169,7 +222,7 @@ export default function RootHomePage() {
                     key={tenant.id}
                     href={`/${tenant.slug}`}
                     prefetch={false}
-                    className="group block bg-white border border-gray-100 hover:border-emerald-300 p-4 rounded-2xl shadow-sm hover:shadow-md active:scale-[0.99] transition-all relative overflow-hidden"
+                    className="group block bg-white border border-gray-100 hover:border-emerald-300 p-4 rounded-2xl shadow-xs hover:shadow-md active:scale-[0.99] transition-all relative overflow-hidden"
                   >
                     <div className="flex items-center gap-3.5">
                       <div

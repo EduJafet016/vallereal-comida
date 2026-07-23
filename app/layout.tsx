@@ -25,6 +25,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#047857" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white text-gray-900`}>
         <CartProvider>
           <div className="max-w-md mx-auto min-h-screen bg-white relative flex flex-col justify-between pb-6">
