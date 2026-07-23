@@ -1,5 +1,9 @@
 'use client';
 
+import {
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 import { use, useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Tenant, Product, Category } from '@/types';
@@ -846,7 +850,7 @@ export default function TenantDashboardPage({ params }: PageProps) {
                       {product.is_available ? 'Disponible' : 'Agotado'}
                     </span>
                   </div>
-
+                      
                   <div className="flex items-center gap-1.5 shrink-0">
                     {/* BOTÓN EDITAR */}
                     <button
@@ -879,22 +883,23 @@ export default function TenantDashboardPage({ params }: PageProps) {
                     </div>
 
                     {/* TOGGLE DISPONIBILIDAD */}
-                    <button
-                      disabled={updatingId === product.id}
-                      onClick={() => toggleAvailability(product)}
-                      className={`p-2 rounded-xl text-xs font-bold ${
-                        product.is_available
-                          ? 'bg-red-50 text-red-600'
-                          : 'bg-emerald-50 text-emerald-600'
-                      }`}
-                    >
-                      {updatingId === product.id ? (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                      ) : product.is_available ? (
-                        <X className="w-4 h-4" />
-                      ) : (
-                        <Check className="w-4 h-4" />
-                      )}
+                   <button
+                         disabled={updatingId === product.id}
+                         onClick={() => toggleAvailability(product)}
+                         className={`p-2 rounded-xl text-xs font-bold border flex items-center gap-1 transition-all active:scale-95 ${
+                         product.is_available
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                        : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+  }                     `}
+                        title={product.is_available ? 'Marcar como agotado' : 'Marcar como disponible'}
+                        >
+                        {updatingId === product.id ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : product.is_available ? (
+                            <Eye className="w-4 h-4" />
+                        ) : (
+                            <EyeOff className="w-4 h-4" />
+                        )}
                     </button>
                   </div>
                 </div>
