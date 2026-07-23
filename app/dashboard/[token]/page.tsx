@@ -23,6 +23,7 @@ import {
   FileText,
   Trash2,
   AlertTriangle,
+  Pencil,
 } from 'lucide-react';
 
 interface PageProps {
@@ -83,6 +84,13 @@ export default function TenantDashboardPage({ params }: PageProps) {
   const [newProdCategory, setNewProdCategory] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
   const [creatingProduct, setCreatingProduct] = useState(false);
+
+  // Modal Editar Producto
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editProdName, setEditProdName] = useState('');
+  const [editProdPrice, setEditProdPrice] = useState('');
+  const [editProdDesc, setEditProdDesc] = useState('');
+  const [savingProduct, setSavingProduct] = useState(false);
 
   // URLs
   const dashboardUrl = typeof window !== 'undefined' ? window.location.href : '';
@@ -370,6 +378,69 @@ export default function TenantDashboardPage({ params }: PageProps) {
     } finally {
       setCreatingProduct(false);
     }
+  };
+
+  // Abrir modal de edición con los datos actuales
+  const openEditProductModal = (product: Product) => {
+    setEditingProduct(product);
+    setEditProdName(product.name);
+    setEditProdPrice(product.price.toString());
+    setEditProdDesc(product.description || '');
+  };
+
+  // Guardar la edición completa del producto
+  const handleSaveProductEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+
+    setSavingProduct(true);
+
+    const { error } = await supabase
+      .from('products')
+      .update({
+        name: editProdName.trim(),
+        price: parseFloat(editProdPrice),
+        description: editProdDesc.trim() || null,
+      })
+      .eq('id', editingProduct.id);
+
+    if (error) {
+      alert(`Error al actualizar el platillo: ${error.message}`);
+    } else {
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === editingProduct.id
+            ? {
+                ...p,
+                name: editProdName.trim(),
+                price: parseFloat(editProdPrice),
+                description: editProdDesc.trim() || undefined,
+              }
+            : p
+        )
+      );
+      setEditingProduct(null);
+    }
+
+    setSavingProduct(false);
+  };
+
+  // Eliminar un platillo individual
+  const handleDeleteProduct = async (product: Product) => {
+    if (!confirm(`¿Estás seguro de eliminar "${product.name}"?`)) return;
+
+    setUpdatingId(product.id);
+    const { error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', product.id);
+
+    if (error) {
+      alert(`Error al eliminar el platillo: ${error.message}`);
+    } else {
+      setProducts((prev) => prev.filter((p) => p.id !== product.id));
+    }
+    setUpdatingId(null);
   };
 
   // Toggle Disponibilidad
@@ -754,7 +825,7 @@ export default function TenantDashboardPage({ params }: PageProps) {
               products.map((product) => (
                 <div
                   key={product.id}
-                  className="p-4 bg-white border rounded-2xl shadow-sm flex justify-between items-center"
+                  className="p-4 bg-white border rounded-2xl shadow-sm flex justify-between items-center gap-2"
                 >
                   <div className="pr-2 flex-1">
                     <h3 className="font-semibold text-gray-900 text-sm">
@@ -776,7 +847,26 @@ export default function TenantDashboardPage({ params }: PageProps) {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* BOTÓN EDITAR */}
+                    <button
+                      onClick={() => openEditProductModal(product)}
+                      className="p-2 bg-gray-50 hover:bg-gray-100 border text-gray-600 rounded-xl transition-all active:scale-95"
+                      title="Editar platillo"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* BOTÓN ELIMINAR */}
+                    <button
+                      onClick={() => handleDeleteProduct(product)}
+                      className="p-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded-xl transition-all active:scale-95"
+                      title="Eliminar platillo"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* INPUT PRECIO */}
                     <div className="flex items-center gap-1 bg-gray-50 border px-2 py-1 rounded-xl">
                       <span className="text-xs font-bold text-gray-400">$</span>
                       <input
@@ -788,10 +878,11 @@ export default function TenantDashboardPage({ params }: PageProps) {
                       />
                     </div>
 
+                    {/* TOGGLE DISPONIBILIDAD */}
                     <button
                       disabled={updatingId === product.id}
                       onClick={() => toggleAvailability(product)}
-                      className={`p-2.5 rounded-xl text-xs font-bold ${
+                      className={`p-2 rounded-xl text-xs font-bold ${
                         product.is_available
                           ? 'bg-red-50 text-red-600'
                           : 'bg-emerald-50 text-emerald-600'
@@ -876,6 +967,82 @@ export default function TenantDashboardPage({ params }: PageProps) {
                     {deletingTenant ? 'Eliminando...' : 'Sí, eliminar'}
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL PARA EDITAR PLATILLO */}
+          {editingProduct && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+              <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-xl space-y-4">
+                <div className="flex justify-between items-center border-b pb-3">
+                  <h3 className="font-bold text-gray-900 text-base">Editar Platillo</h3>
+                  <button
+                    onClick={() => setEditingProduct(null)}
+                    className="p-1 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveProductEdit} className="space-y-3">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-700 block mb-1">
+                      Nombre
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editProdName}
+                      onChange={(e) => setEditProdName(e.target.value)}
+                      className="w-full p-2.5 border rounded-xl text-xs text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-gray-700 block mb-1">
+                      Precio ($)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      required
+                      value={editProdPrice}
+                      onChange={(e) => setEditProdPrice(e.target.value)}
+                      className="w-full p-2.5 border rounded-xl text-xs text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-gray-700 block mb-1">
+                      Descripción
+                    </label>
+                    <textarea
+                      rows={3}
+                      placeholder="Escribe los detalles o ingredientes..."
+                      value={editProdDesc}
+                      onChange={(e) => setEditProdDesc(e.target.value)}
+                      className="w-full p-2.5 border rounded-xl text-xs text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingProduct(null)}
+                      className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs transition-all"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={savingProduct}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-md disabled:opacity-50"
+                    >
+                      {savingProduct ? 'Guardando...' : 'Guardar Cambios'}
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           )}
