@@ -1,5 +1,6 @@
 'use client';
 
+import { Tenant, Category, Product, ProductVariant } from '@/types';
 import { use, useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabase';
