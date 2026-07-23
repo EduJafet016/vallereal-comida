@@ -12,6 +12,7 @@ import {
   MapPin,
   UtensilsCrossed,
   ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 import { isStoreOpen } from '@/lib/utils';
 import { AuthModal } from '@/app/components/AuthModal';
@@ -22,7 +23,6 @@ export default function RootHomePage() {
   const [loading, setLoading] = useState(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
-  // Función para obtener todos los locales sin filtrar por is_active en la query
   const fetchTenants = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -43,7 +43,7 @@ export default function RootHomePage() {
     fetchTenants();
   }, [fetchTenants]);
 
-  // Suscripción en Tiempo Real para el Directorio Completo
+  // Suscripción en Tiempo Real
   useEffect(() => {
     const channel = supabase
       .channel('realtime-directory')
@@ -83,7 +83,6 @@ export default function RootHomePage() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
-      {/* Header estilo App Gastronómica */}
       <header className="bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 text-white pt-8 pb-10 px-4 rounded-b-[2.5rem] shadow-md">
         <div className="max-w-md mx-auto space-y-4">
           <div className="flex justify-between items-center">
@@ -108,7 +107,6 @@ export default function RootHomePage() {
             </p>
           </div>
 
-          {/* Buscador de Locales */}
           <div className="relative pt-2">
             <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-5 z-10" />
             <input
@@ -122,7 +120,6 @@ export default function RootHomePage() {
         </div>
       </header>
 
-      {/* Directorio de Locales */}
       <section className="max-w-md mx-auto px-4 mt-6 space-y-4">
         <div className="flex justify-between items-center px-1">
           <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
@@ -147,12 +144,18 @@ export default function RootHomePage() {
         ) : (
           <div className="space-y-3">
             {filteredTenants.map((tenant) => {
-              // Lógica de apertura estricta:
+              // 1. Horario puro de reloj
               const isWithinSchedule = isStoreOpen(tenant.opening_time, tenant.closing_time);
-              const isManualActive = tenant.is_active ?? true;
               
-              // Un local está abierto SOLO si el switch está ON Y está en horario
-              const isOpen = isManualActive && isWithinSchedule;
+              // 2. Evaluaciones explícitas de los flags de BD
+              const isManualActive = tenant.is_active ?? true;
+              const isForceOpen = tenant.force_open === true;
+
+              // 3. Estado ABIERTO
+              const isOpen = isManualActive && (isWithinSchedule || isForceOpen);
+              
+              // 4. Muestra badge 'Fuera de horario' SOLO si está ABIERTO gracias a force_open fuera del horario normal
+              const isExtraHours = isOpen && !isWithinSchedule;
 
               return (
                 <Link
@@ -161,7 +164,6 @@ export default function RootHomePage() {
                   className="group block bg-white border border-gray-100 hover:border-emerald-300 p-4 rounded-2xl shadow-sm hover:shadow-md active:scale-[0.99] transition-all relative overflow-hidden"
                 >
                   <div className="flex items-center gap-3.5">
-                    {/* Icono de Negocio con Estado */}
                     <div
                       className={`p-3 rounded-2xl shrink-0 transition-colors ${
                         isOpen
@@ -172,14 +174,12 @@ export default function RootHomePage() {
                       <Store className="w-5 h-5" />
                     </div>
 
-                    {/* Información */}
                     <div className="flex-1 min-w-0 space-y-0.5">
                       <div className="flex items-center gap-2">
                         <h3 className="font-bold text-gray-900 text-sm truncate group-hover:text-emerald-700 transition-colors">
                           {tenant.name}
                         </h3>
 
-                        {/* Badge de Estado */}
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 ${
                             isOpen
@@ -205,6 +205,12 @@ export default function RootHomePage() {
                         <span>
                           {tenant.opening_time.slice(0, 5)} - {tenant.closing_time.slice(0, 5)} hrs
                         </span>
+
+                        {isExtraHours && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-600 font-bold ml-1 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                            <Sparkles className="w-2.5 h-2.5" /> Fuera de horario
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -216,7 +222,6 @@ export default function RootHomePage() {
           </div>
         )}
 
-        {/* Micro-banner de garantía */}
         <div className="mt-8 bg-emerald-50/60 border border-emerald-100 p-4 rounded-2xl flex items-start gap-3">
           <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
           <div className="text-xs space-y-0.5">
@@ -228,7 +233,6 @@ export default function RootHomePage() {
         </div>
       </section>
 
-      {/* MODAL DE ACCESO / REGISTRO / RECUPERACIÓN */}
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
     </main>
   );
