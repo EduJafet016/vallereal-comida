@@ -144,7 +144,35 @@ export default function TenantDashboardPage({ params }: PageProps) {
     if (token) fetchTenantByToken();
   }, [token]);
 
-  // Verificar PIN
+  // 2. Bypass automático para SuperAdmin y para accesos desde Master Admin (?pin=XXXX)
+  useEffect(() => {
+    if (!tenant) return;
+
+    const checkAutoUnlock = async () => {
+      // A. Verificar si viene el PIN correcto en los parámetros de la URL
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const pinFromUrl = urlParams.get('pin');
+
+        if (pinFromUrl && pinFromUrl === (tenant as any)?.admin_pin) {
+          setIsAuthenticated(true);
+          localStorage.setItem(`auth_token_${token}`, 'true');
+          return;
+        }
+      }
+
+      // B. Verificar si hay una sesión activa de Supabase Auth con rol 'superadmin'
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.app_metadata?.role === 'superadmin') {
+        setIsAuthenticated(true);
+        localStorage.setItem(`auth_token_${token}`, 'true');
+      }
+    };
+
+    checkAutoUnlock();
+  }, [tenant, token]);
+
+  // Verificar PIN manual
   const handleVerifyPin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!tenant) return;
@@ -417,10 +445,12 @@ export default function TenantDashboardPage({ params }: PageProps) {
             <form onSubmit={handleVerifyPin} className="space-y-3 max-w-xs mx-auto">
               <input
                 type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 maxLength={4}
                 placeholder="0 0 0 0"
                 value={pinInput}
-                onChange={(e) => setPinInput(e.target.value)}
+                onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
                 className="w-full text-center text-2xl font-mono text-gray-900 font-bold tracking-widest p-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
 
@@ -503,9 +533,11 @@ export default function TenantDashboardPage({ params }: PageProps) {
                   <label className="text-xs font-semibold text-gray-700 block mb-1">WhatsApp de Pedidos</label>
                   <input
                     type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     required
                     value={editWhatsapp}
-                    onChange={(e) => setEditWhatsapp(e.target.value)}
+                    onChange={(e) => setEditWhatsapp(e.target.value.replace(/\D/g, ''))}
                     className="w-full p-2 border rounded-xl text-xs text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
@@ -629,10 +661,12 @@ export default function TenantDashboardPage({ params }: PageProps) {
               <form onSubmit={handleUpdatePin} className="mt-3 pt-3 border-t flex gap-2">
                 <input
                   type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   maxLength={4}
                   placeholder="Nuevo PIN"
                   value={newPin}
-                  onChange={(e) => setNewPin(e.target.value)}
+                  onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
                   className="flex-1 p-2 border rounded-xl text-xs font-mono text-gray-900 text-center focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
                 <button
