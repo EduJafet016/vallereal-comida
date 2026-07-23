@@ -12,6 +12,7 @@ import {
   MapPin,
   UtensilsCrossed,
   ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 import { isStoreOpen } from '@/lib/utils';
 import { AuthModal } from '@/app/components/AuthModal';
@@ -147,10 +148,15 @@ export default function RootHomePage() {
         ) : (
           <div className="space-y-3">
             {filteredTenants.map((tenant) => {
-              // Lógica de apertura combinada: Horario + Switch is_active
+              // Lógica de apertura:
+              // 1. Verificamos si está en su horario programado
               const isWithinSchedule = isStoreOpen(tenant.opening_time, tenant.closing_time);
-              const isManualActive = tenant.is_active ?? true;
-              const isOpen = isWithinSchedule && isManualActive;
+              // 2. Verificamos el switch manual (is_active)
+              const isManualActive = tenant.is_active ?? false;
+              
+              // 3. Está abierto SI el dueño encendió el switch O SI está en su horario habitual
+              const isOpen = isManualActive || isWithinSchedule;
+              const isExtraHours = isManualActive && !isWithinSchedule;
 
               return (
                 <Link
@@ -203,6 +209,12 @@ export default function RootHomePage() {
                         <span>
                           {tenant.opening_time.slice(0, 5)} - {tenant.closing_time.slice(0, 5)} hrs
                         </span>
+
+                        {isExtraHours && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-600 font-bold ml-1 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                            <Sparkles className="w-2.5 h-2.5" /> Fuera de horario
+                          </span>
+                        )}
                       </div>
                     </div>
 

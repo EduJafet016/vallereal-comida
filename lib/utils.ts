@@ -42,6 +42,6 @@ export function isStoreOpen(
     isWithinSchedule = currentMinutes >= openMinutes || currentMinutes < closeMinutes;
   }
 
-  // ✅ ABIERTO sólo si el switch está activado Y estamos dentro del horario programado
+  //  ABIERTO sólo si el switch está activado Y estamos dentro del horario programado
   return isActive && isWithinSchedule;
 }
