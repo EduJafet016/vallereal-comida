@@ -1,9 +1,5 @@
 'use client';
 
-import {
-  Eye,
-  EyeOff,
-} from 'lucide-react';
 import { use, useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Tenant, Product, Category } from '@/types';
@@ -12,7 +8,6 @@ import {
   Lock,
   ShieldAlert,
   Check,
-  X,
   RefreshCw,
   KeyRound,
   ShieldCheck,
@@ -22,12 +17,13 @@ import {
   Copy,
   ExternalLink,
   Settings,
-  Phone,
-  Clock,
-  FileText,
   Trash2,
   AlertTriangle,
   Pencil,
+  Eye,
+  EyeOff,
+  Truck,
+  X,
 } from 'lucide-react';
 
 interface PageProps {
@@ -61,13 +57,17 @@ export default function TenantDashboardPage({ params }: PageProps) {
   const [isChangingPin, setIsChangingPin] = useState(false);
   const [pinSuccessMsg, setPinSuccessMsg] = useState('');
 
-  // Edición del Local
+  // Edición del Local & Envíos
   const [isEditingTenant, setIsEditingTenant] = useState(false);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editWhatsapp, setEditWhatsapp] = useState('');
   const [editOpeningTime, setEditOpeningTime] = useState('');
   const [editClosingTime, setEditClosingTime] = useState('');
+  const [editFeeLow, setEditFeeLow] = useState('10');
+  const [editFeeHigh, setEditFeeHigh] = useState('20');
+  const [editEnableFreeDelivery, setEditEnableFreeDelivery] = useState(true);
+  const [editFreeMinAmount, setEditFreeMinAmount] = useState('150');
   const [savingTenant, setSavingTenant] = useState(false);
   const [tenantSuccessMsg, setTenantSuccessMsg] = useState('');
 
@@ -139,6 +139,10 @@ export default function TenantDashboardPage({ params }: PageProps) {
         setEditWhatsapp(data.whatsapp_number || '');
         setEditOpeningTime(data.opening_time || '09:00');
         setEditClosingTime(data.closing_time || '21:00');
+        setEditFeeLow(data.delivery_fee_low_zone?.toString() ?? '10');
+        setEditFeeHigh(data.delivery_fee_high_zone?.toString() ?? '20');
+        setEditEnableFreeDelivery(data.enable_free_delivery ?? true);
+        setEditFreeMinAmount(data.free_delivery_min_amount?.toString() ?? '150');
 
         const storedLock = localStorage.getItem(`lockout_${data.id}`);
         const storedAttempts = localStorage.getItem(`attempts_${data.id}`);
@@ -246,7 +250,7 @@ export default function TenantDashboardPage({ params }: PageProps) {
     loadData();
   }, [loadData]);
 
-  // Guardar Edición del Tenant
+  // Guardar Edición del Tenant y Envíos
   const handleSaveTenant = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tenant) return;
@@ -259,15 +263,21 @@ export default function TenantDashboardPage({ params }: PageProps) {
 
     setSavingTenant(true);
 
+    const updatedFields = {
+      name: editName.trim(),
+      description: editDescription.trim() || null,
+      whatsapp_number: cleanPhone,
+      opening_time: editOpeningTime,
+      closing_time: editClosingTime,
+      delivery_fee_low_zone: parseFloat(editFeeLow) || 0,
+      delivery_fee_high_zone: parseFloat(editFeeHigh) || 0,
+      enable_free_delivery: editEnableFreeDelivery,
+      free_delivery_min_amount: parseFloat(editFreeMinAmount) || 0,
+    };
+
     const { error } = await supabase
       .from('tenants')
-      .update({
-        name: editName.trim(),
-        description: editDescription.trim() || null,
-        whatsapp_number: cleanPhone,
-        opening_time: editOpeningTime,
-        closing_time: editClosingTime,
-      })
+      .update(updatedFields)
       .eq('id', tenant.id);
 
     if (error) {
@@ -275,14 +285,11 @@ export default function TenantDashboardPage({ params }: PageProps) {
     } else {
       setTenant({
         ...tenant,
-        name: editName.trim(),
+        ...updatedFields,
         description: editDescription.trim() || undefined,
-        whatsapp_number: cleanPhone,
-        opening_time: editOpeningTime,
-        closing_time: editClosingTime,
       });
       setIsEditingTenant(false);
-      setTenantSuccessMsg('Información del restaurante actualizada correctamente.');
+      setTenantSuccessMsg('Información y configuración de envíos guardadas.');
       setTimeout(() => setTenantSuccessMsg(''), 4000);
     }
 
@@ -294,9 +301,9 @@ export default function TenantDashboardPage({ params }: PageProps) {
     if (!tenant) return;
 
     if (deletePinConfirm !== (tenant as any).admin_pin) {
-  alert('El PIN de confirmación es incorrecto.');
-  return;
-}
+      alert('El PIN de confirmación es incorrecto.');
+      return;
+    }
 
     setDeletingTenant(true);
 
@@ -593,11 +600,11 @@ export default function TenantDashboardPage({ params }: PageProps) {
             </div>
           )}
 
-          {/* TARJETA CONFIGURACIÓN DEL LOCAL */}
+          {/* TARJETA CONFIGURACIÓN DEL LOCAL Y TARIFAS DE ENVÍO */}
           <div className="bg-white p-4 rounded-2xl border shadow-sm space-y-3">
             <div className="flex justify-between items-center border-b pb-2">
               <span className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Settings className="w-4 h-4 text-emerald-600" /> Datos del Local
+                <Settings className="w-4 h-4 text-emerald-600" /> Datos y Envíos
               </span>
               <button
                 onClick={() => setIsEditingTenant(!isEditingTenant)}
@@ -608,11 +615,27 @@ export default function TenantDashboardPage({ params }: PageProps) {
             </div>
 
             {!isEditingTenant ? (
-              <div className="text-xs space-y-1.5 text-gray-700">
+              <div className="text-xs space-y-2 text-gray-700">
                 <p><strong className="text-gray-900">Nombre:</strong> {tenant.name}</p>
                 <p><strong className="text-gray-900">Descripción:</strong> {tenant.description || 'Sin descripción'}</p>
                 <p><strong className="text-gray-900">WhatsApp:</strong> {tenant.whatsapp_number}</p>
-                <p><strong className="text-gray-900">Horario:</strong> {tenant.opening_time.slice(0, 5)} - {tenant.closing_time.slice(0, 5)}</p>
+                <p><strong className="text-gray-900">Horario:</strong> {tenant.opening_time.slice(0, 5)} - {tenant.closing_time.slice(0, 5)} hrs</p>
+                
+                <div className="pt-2 border-t mt-2 space-y-1 bg-gray-50 p-2.5 rounded-xl border">
+                  <span className="font-bold text-gray-900 flex items-center gap-1">
+                    <Truck className="w-3.5 h-3.5 text-emerald-600" /> Logística de Envío
+                  </span>
+                  <p>• Parte Baja: <strong>${tenant.delivery_fee_low_zone ?? 10}.00</strong></p>
+                  <p>• Parte Alta: <strong>${tenant.delivery_fee_high_zone ?? 20}.00</strong></p>
+                  <p>
+                    • Envío Gratis:{' '}
+                    <strong>
+                      {tenant.enable_free_delivery
+                        ? `A partir de $${tenant.free_delivery_min_amount}.00`
+                        : 'Desactivado'}
+                    </strong>
+                  </p>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleSaveTenant} className="space-y-3 pt-1">
@@ -672,10 +695,63 @@ export default function TenantDashboardPage({ params }: PageProps) {
                   </div>
                 </div>
 
+                {/* Tarifas de Envío */}
+                <div className="pt-2 border-t space-y-2">
+                  <span className="text-xs font-bold text-gray-800 block">Costos de Envío por Zona</span>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-600 block mb-0.5">Parte Baja ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editFeeLow}
+                        onChange={(e) => setEditFeeLow(e.target.value)}
+                        className="w-full p-2 border rounded-xl text-xs text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-600 block mb-0.5">Parte Alta ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editFeeHigh}
+                        onChange={(e) => setEditFeeHigh(e.target.value)}
+                        className="w-full p-2 border rounded-xl text-xs text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <label className="flex items-center gap-2 cursor-pointer pt-1">
+                    <input
+                      type="checkbox"
+                      checked={editEnableFreeDelivery}
+                      onChange={(e) => setEditEnableFreeDelivery(e.target.checked)}
+                      className="w-4 h-4 text-emerald-600 accent-emerald-600 rounded"
+                    />
+                    <span className="text-xs font-semibold text-gray-800">
+                      Ofrecer Envío Gratis por consumo mínimo
+                    </span>
+                  </label>
+
+                  {editEnableFreeDelivery && (
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-600 block mb-0.5">Monto mínimo ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editFreeMinAmount}
+                        onChange={(e) => setEditFreeMinAmount(e.target.value)}
+                        className="w-full p-2 border rounded-xl text-xs text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <button
                   type="submit"
                   disabled={savingTenant}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-md active:scale-[0.98] disabled:opacity-50"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-md active:scale-[0.98] disabled:opacity-50 mt-2"
                 >
                   {savingTenant ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
@@ -850,7 +926,7 @@ export default function TenantDashboardPage({ params }: PageProps) {
                       {product.is_available ? 'Disponible' : 'Agotado'}
                     </span>
                   </div>
-                      
+
                   <div className="flex items-center gap-1.5 shrink-0">
                     {/* BOTÓN EDITAR */}
                     <button
@@ -883,23 +959,23 @@ export default function TenantDashboardPage({ params }: PageProps) {
                     </div>
 
                     {/* TOGGLE DISPONIBILIDAD */}
-                   <button
-                         disabled={updatingId === product.id}
-                         onClick={() => toggleAvailability(product)}
-                         className={`p-2 rounded-xl text-xs font-bold border flex items-center gap-1 transition-all active:scale-95 ${
-                         product.is_available
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                        : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-  }                     `}
-                        title={product.is_available ? 'Marcar como agotado' : 'Marcar como disponible'}
-                        >
-                        {updatingId === product.id ? (
-                            <RefreshCw className="w-4 h-4 animate-spin" />
-                        ) : product.is_available ? (
-                            <Eye className="w-4 h-4" />
-                        ) : (
-                            <EyeOff className="w-4 h-4" />
-                        )}
+                    <button
+                      disabled={updatingId === product.id}
+                      onClick={() => toggleAvailability(product)}
+                      className={`p-2 rounded-xl text-xs font-bold border flex items-center gap-1 transition-all active:scale-95 ${
+                        product.is_available
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                          : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                      }`}
+                      title={product.is_available ? 'Marcar como agotado' : 'Marcar como disponible'}
+                    >
+                      {updatingId === product.id ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : product.is_available ? (
+                        <Eye className="w-4 h-4" />
+                      ) : (
+                        <EyeOff className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
                 </div>

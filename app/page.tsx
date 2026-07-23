@@ -81,7 +81,7 @@ export default function RootHomePage() {
             <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-5 z-10" />
             <input
               type="text"
-              placeholder="Buscar fonda, postre o platillo..."
+              placeholder="Buscar negocio, postre o platillo..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-3 bg-white text-gray-900 placeholder:text-gray-400 rounded-2xl text-xs font-medium shadow-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all"

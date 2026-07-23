@@ -20,6 +20,7 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
   const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
   const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
+  const [zone, setZone] = useState<'low' | 'high'>('low');
   const [orderNotes, setOrderNotes] = useState('');
   const [hasSavedData, setHasSavedData] = useState(false);
 
@@ -29,10 +30,11 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
       const savedData = localStorage.getItem(CUSTOMER_DATA_KEY);
       if (savedData) {
         try {
-          const { name, address: savedAddress, notes } = JSON.parse(savedData);
+          const { name, address: savedAddress, notes, zone: savedZone } = JSON.parse(savedData);
           if (name) setCustomerName(name);
           if (savedAddress) setAddress(savedAddress);
           if (notes) setOrderNotes(notes);
+          if (savedZone) setZone(savedZone);
           setHasSavedData(true);
         } catch (e) {
           console.error('Error al cargar datos guardados:', e);
@@ -44,11 +46,20 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
   if (!isOpen) return null;
 
   const isDelivery = deliveryType === 'delivery';
+
+  // Determinación dinámica de tarifa de envío por zona
+  const baseDeliveryFee = zone === 'low'
+    ? (tenant.delivery_fee_low_zone ?? tenant.delivery_fee ?? 10)
+    : (tenant.delivery_fee_high_zone ?? (tenant.delivery_fee ? tenant.delivery_fee + 5 : 20));
+
+  const isFreeDeliveryEligible =
+    (tenant.enable_free_delivery ?? true) &&
+    subtotal >= tenant.free_delivery_min_amount;
+
   const deliveryFee = isDelivery
-    ? subtotal >= tenant.free_delivery_min_amount
-      ? 0
-      : tenant.delivery_fee
+    ? (isFreeDeliveryEligible ? 0 : baseDeliveryFee)
     : 0;
+
   const total = subtotal + deliveryFee;
 
   const handleSendOrder = (e: React.FormEvent) => {
@@ -69,6 +80,7 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
       name: customerName.trim(),
       address: address.trim(),
       notes: orderNotes.trim(),
+      zone,
     };
     localStorage.setItem(CUSTOMER_DATA_KEY, JSON.stringify(customerDataToSave));
 
@@ -76,10 +88,11 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
       tenant,
       items,
       {
-        name: customerName,
-        address: isDelivery ? address : 'Pasa a recoger al local',
-        notes: orderNotes,
+        name: customerName.trim(),
+        address: isDelivery ? address.trim() : 'Pasa a recoger al local',
+        notes: orderNotes.trim(),
         deliveryType,
+        zone,
       },
       subtotal
     );
@@ -210,6 +223,56 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
                   </div>
                 )}
 
+                {/* Selector de Zona si es a domicilio */}
+                {isDelivery && (
+                  <div>
+                    <label className="text-xs font-semibold text-gray-700 block mb-1.5">
+                      Zona en Valle Real *
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setZone('low')}
+                        className={`py-2 px-3 text-xs font-medium rounded-xl border transition-all text-left flex flex-col justify-between ${
+                          zone === 'low'
+                            ? 'border-emerald-600 bg-emerald-50 text-emerald-800 font-bold'
+                            : 'border-gray-200 text-gray-600 bg-white'
+                        }`}
+                      >
+                        <div>
+                          <span className="block font-semibold">Parte Baja</span>
+                          <span className="text-[10px] text-gray-400 font-normal leading-tight block mt-0.5">
+                            Ej: Mz. 4, Estambul...
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-bold text-emerald-700 mt-1.5 block">
+                          ${tenant.delivery_fee_low_zone ?? 10}.00
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setZone('high')}
+                        className={`py-2 px-3 text-xs font-medium rounded-xl border transition-all text-left flex flex-col justify-between ${
+                          zone === 'high'
+                            ? 'border-emerald-600 bg-emerald-50 text-emerald-800 font-bold'
+                            : 'border-gray-200 text-gray-600 bg-white'
+                        }`}
+                      >
+                        <div>
+                          <span className="block font-semibold">Parte Alta</span>
+                          <span className="text-[10px] text-gray-400 font-normal leading-tight block mt-0.5">
+                            Ej: Sintra, Granada...
+                          </span>
+                        </div>
+                        <span className="text-[11px] font-bold text-emerald-700 mt-1.5 block">
+                          ${tenant.delivery_fee_high_zone ?? 20}.00
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Campos de texto */}
                 <div>
                   <label className="text-xs font-semibold text-gray-700 block mb-1">
@@ -265,7 +328,7 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
                 </div>
                 {isDelivery && (
                   <div className="flex justify-between">
-                    <span>Costo de envío:</span>
+                    <span>Costo de envío ({zone === 'low' ? 'Parte Baja' : 'Parte Alta'}):</span>
                     <span className="font-semibold text-gray-900">
                       {deliveryFee === 0 ? '¡GRATIS!' : `$${deliveryFee.toFixed(2)}`}
                     </span>
