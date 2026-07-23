@@ -75,11 +75,25 @@ export default function RootHomePage() {
     };
   }, []);
 
-  const filteredTenants = tenants.filter(
-    (t) =>
-      t.name.toLowerCase().includes(search.toLowerCase()) ||
-      t.description?.toLowerCase().includes(search.toLowerCase())
-  );
+  // 1. Filtrar por búsqueda y 2. Ordenar (Abiertos primero, luego Cerrados, y alfabéticamente)
+  const filteredTenants = tenants
+    .filter(
+      (t) =>
+        t.name.toLowerCase().includes(search.toLowerCase()) ||
+        t.description?.toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      const aOpen = a.is_active ?? false;
+      const bOpen = b.is_active ?? false;
+
+      // Si 'a' está abierto y 'b' cerrado, 'a' va primero (-1)
+      if (aOpen && !bOpen) return -1;
+      // Si 'b' está abierto y 'a' cerrado, 'b' va primero (1)
+      if (!aOpen && bOpen) return 1;
+
+      // Si ambos tienen el mismo estado (los dos abiertos o los dos cerrados), ordenamos alfabéticamente A-Z
+      return a.name.localeCompare(b.name);
+    });
 
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
@@ -151,8 +165,6 @@ export default function RootHomePage() {
               const isManualActive = tenant.is_active ?? false;
 
               // REGLA DE NEGOCIO HÍBRIDA:
-              // - Si is_active es FALSE -> CERRADO siempre (Apagado manual o automático fuera de horario)
-              // - Si is_active es TRUE -> ABIERTO siempre (Operación normal o Encendido extraordinario a deshora)
               const isOpen = isManualActive;
 
               // Activa el badge "Fuera de horario" solo cuando el vendedor enciende su switch fuera del horario habitual
