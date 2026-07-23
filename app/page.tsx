@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Sparkles,
   Download,
+  Heart,
 } from 'lucide-react';
 import { isStoreOpen } from '@/lib/utils';
 import { AuthModal } from '@/app/components/AuthModal';
@@ -289,6 +290,16 @@ export default function RootHomePage() {
               })}
             </div>
           )}
+
+          {/* Footer sutil para cerrar la página con estilo */}
+          <div className="pt-8 pb-4 text-center space-y-1">
+            <p className="text-xs font-semibold text-gray-400 flex items-center justify-center gap-1">
+              Hecho con <Heart className="w-3 h-3 text-red-500 fill-red-500" /> para Valle Real by EduJafet016
+            </p>
+            <p className="text-[10px] text-gray-400">
+              Apoya el comercio local.
+            </p>
+          </div>
         </section>
       </div>
 
