@@ -42,6 +42,7 @@ export default function TenantPage({ params }: PageProps) {
 
   const { addToCart, items, subtotal } = useCart();
 
+  // Carga de Datos Optimizada en Paralelo
   const loadData = useCallback(
     async (isSilent = false) => {
       if (!slug) return;
@@ -50,29 +51,34 @@ export default function TenantPage({ params }: PageProps) {
       else setRefreshing(true);
 
       try {
+        // 1. Obtener datos del Tenant por slug
         const { data: tenantData, error: tenantErr } = await supabase
           .from('tenants')
-          .select('*')
+          .select('id, name, slug, description, whatsapp_number, opening_time, closing_time, is_active')
           .eq('slug', slug)
           .single();
 
         if (tenantErr || !tenantData) throw new Error('Local no encontrado');
-        setTenant(tenantData);
+        setTenant(tenantData as Tenant);
 
-        const { data: catData } = await supabase
-          .from('categories')
-          .select('*')
-          .eq('tenant_id', tenantData.id)
-          .order('sort_order');
+        // 2. Cargar Categorías y Productos SIMULTÁNEAMENTE (Promise.all)
+        const [catRes, prodRes] = await Promise.all([
+          supabase
+            .from('categories')
+            .select('id, tenant_id, name, sort_order')
+            .eq('tenant_id', tenantData.id)
+            .order('sort_order'),
+          supabase
+            .from('products')
+            .select('id, tenant_id, category_id, name, description, price, is_available, product_variants(id, product_id, name, price_override)')
+            .eq('tenant_id', tenantData.id),
+        ]);
 
-        setCategories(catData || []);
+        if (catRes.error) throw catRes.error;
+        if (prodRes.error) throw prodRes.error;
 
-        const { data: prodData } = await supabase
-          .from('products')
-          .select('*, product_variants(*)')
-          .eq('tenant_id', tenantData.id);
-
-        setProducts(prodData || []);
+        setCategories(catRes.data || []);
+        setProducts(prodRes.data || []);
         setError(null);
       } catch (err: any) {
         console.error('Error al cargar menú:', err);
@@ -89,7 +95,7 @@ export default function TenantPage({ params }: PageProps) {
     loadData(false);
   }, [loadData]);
 
-  // Realtime Subscription para escuchar cambios en is_active / datos del tenant en vivo
+  // Realtime Subscription
   useEffect(() => {
     if (!tenant?.id) return;
 
@@ -169,17 +175,11 @@ export default function TenantPage({ params }: PageProps) {
     );
   }
 
-  // --- REGLA DE NEGOCIO HÍBRIDA ---
-  // 1. Horario de reloj programado habitual
+  // REGLA DE NEGOCIO HÍBRIDA
   const isWithinSchedule = isStoreOpen(tenant.opening_time, tenant.closing_time);
-  
-  // 2. Switch manual del comerciante
   const isManualActive = tenant.is_active ?? false;
 
-  // 3. Si el switch está activo, la tienda está abierta.
   const isOpen = isManualActive;
-
-  // 4. Si está abierta fuera de su horario, activa la advertencia de servicio especial
   const isExtraordinaryService = isOpen && !isWithinSchedule;
 
   const totalCartCount = items.reduce((acc, item) => acc + item.quantity, 0);
@@ -196,7 +196,6 @@ export default function TenantPage({ params }: PageProps) {
           Ver más locales
         </Link>
 
-        {/* Botón de refrescar menú */}
         <button
           onClick={() => loadData(true)}
           title="Actualizar menú"
@@ -211,7 +210,6 @@ export default function TenantPage({ params }: PageProps) {
         <div className="flex justify-between items-start gap-2">
           <h1 className="text-2xl font-black text-gray-900 leading-tight">{tenant.name}</h1>
 
-          {/* BADGE DE ESTADO */}
           <span
             className={`text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0 flex items-center gap-1 ${
               isOpen
@@ -224,14 +222,12 @@ export default function TenantPage({ params }: PageProps) {
           </span>
         </div>
 
-        {/* Descripción corta del negocio */}
         {tenant.description && (
           <p className="text-xs text-gray-600 font-medium leading-relaxed">
             {tenant.description}
           </p>
         )}
 
-        {/* BANNER DE SERVICIO EXTRAORDINARIO / FUERA DE HORARIO */}
         {isExtraordinaryService && (
           <div className="p-3 bg-blue-50 border border-blue-200 text-blue-900 text-xs rounded-xl font-medium flex items-start gap-2">
             <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
@@ -241,7 +237,6 @@ export default function TenantPage({ params }: PageProps) {
           </div>
         )}
 
-        {/* BANNER PREVENTIVO SI ESTÁ CERRADO */}
         {!isOpen && (
           <div className="p-3 bg-red-50 border border-red-200 text-red-900 text-xs rounded-xl font-medium flex items-start gap-2">
             <PowerOff className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
@@ -253,7 +248,6 @@ export default function TenantPage({ params }: PageProps) {
           </div>
         )}
 
-        {/* Datos y horarios */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-gray-500 pt-2 border-t border-gray-100">
           <span className="flex items-center gap-1 font-medium">
             <Clock className="w-3.5 h-3.5 text-emerald-600" />
@@ -313,14 +307,12 @@ export default function TenantPage({ params }: PageProps) {
                           {product.name}
                         </h3>
 
-                        {/* Badge Opciones */}
                         {hasVariants && isAvailable && (
                           <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
                             <Layers className="w-3 h-3" /> Opciones
                           </span>
                         )}
 
-                        {/* Badge Agotado */}
                         {!product.is_available && (
                           <span className="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
                             Agotado
@@ -343,7 +335,6 @@ export default function TenantPage({ params }: PageProps) {
                       </span>
                     </div>
 
-                    {/* Botón interactivo o badge estático */}
                     {isAvailable ? (
                       <button
                         onClick={() => handleAddClick(product)}
