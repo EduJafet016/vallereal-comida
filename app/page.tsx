@@ -12,7 +12,6 @@ import {
   MapPin,
   UtensilsCrossed,
   ShieldCheck,
-  Sparkles,
 } from 'lucide-react';
 import { isStoreOpen } from '@/lib/utils';
 import { AuthModal } from '@/app/components/AuthModal';
@@ -23,7 +22,7 @@ export default function RootHomePage() {
   const [loading, setLoading] = useState(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
-  // Función para obtener todos los locales sin filtrar por is_active
+  // Función para obtener todos los locales sin filtrar por is_active en la query
   const fetchTenants = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -148,15 +147,12 @@ export default function RootHomePage() {
         ) : (
           <div className="space-y-3">
             {filteredTenants.map((tenant) => {
-              // Lógica de apertura:
-              // 1. Verificamos si está en su horario programado
+              // Lógica de apertura estricta:
               const isWithinSchedule = isStoreOpen(tenant.opening_time, tenant.closing_time);
-              // 2. Verificamos el switch manual (is_active)
-              const isManualActive = tenant.is_active ?? false;
+              const isManualActive = tenant.is_active ?? true;
               
-              // 3. Está abierto SI el dueño encendió el switch O SI está en su horario habitual
-              const isOpen = isManualActive || isWithinSchedule;
-              const isExtraHours = isManualActive && !isWithinSchedule;
+              // Un local está abierto SOLO si el switch está ON Y está en horario
+              const isOpen = isManualActive && isWithinSchedule;
 
               return (
                 <Link
@@ -209,12 +205,6 @@ export default function RootHomePage() {
                         <span>
                           {tenant.opening_time.slice(0, 5)} - {tenant.closing_time.slice(0, 5)} hrs
                         </span>
-
-                        {isExtraHours && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-600 font-bold ml-1 bg-blue-50 px-1.5 py-0.5 rounded-md">
-                            <Sparkles className="w-2.5 h-2.5" /> Fuera de horario
-                          </span>
-                        )}
                       </div>
                     </div>
 

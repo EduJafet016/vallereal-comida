@@ -18,6 +18,7 @@ import {
   ArrowLeft,
   Phone,
   PowerOff,
+  Sparkles,
 } from 'lucide-react';
 
 interface PageProps {
@@ -88,7 +89,7 @@ export default function TenantPage({ params }: PageProps) {
     loadData(false);
   }, [loadData]);
 
-  // Realtime Subscription para escuchar cambios en is_active / datos del tenant en vivo
+  // Realtime Subscription para escuchar cambios en is_active / force_open / datos del tenant en vivo
   useEffect(() => {
     if (!tenant?.id) return;
 
@@ -168,13 +169,17 @@ export default function TenantPage({ params }: PageProps) {
     );
   }
 
-  // --- REGLA DE NEGOCIO CORREGIDA ---
-  // 1. isWithinSchedule: Comprueba si la hora actual cae dentro del rango opening_time - closing_time.
-  // 2. isManualActive: Representa el estado del switch en el dashboard.
-  // 3. isOpen: Requiere que el switch esté ENCENDIDO Y que estemos DENTRO DEL HORARIO.
+  // --- REGLA DE NEGOCIO ---
+  // 1. isWithinSchedule: Ventana de reloj programada.
+  // 2. isManualActive: Switch maestro on/off.
+  // 3. isForceOpen: Switch de atención extraordinaria fuera de horario.
+  // 4. isOpen: Abierto si el switch maestro está activo Y (está en horario O forzó la apertura).
   const isWithinSchedule = isStoreOpen(tenant.opening_time, tenant.closing_time);
   const isManualActive = tenant.is_active ?? true;
-  const isOpen = isManualActive && isWithinSchedule;
+  const isForceOpen = tenant.force_open ?? false;
+
+  const isOpen = isManualActive && (isWithinSchedule || isForceOpen);
+  const isExtraordinaryService = isOpen && !isWithinSchedule;
 
   const totalCartCount = items.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -223,6 +228,16 @@ export default function TenantPage({ params }: PageProps) {
           <p className="text-xs text-gray-600 font-medium leading-relaxed">
             {tenant.description}
           </p>
+        )}
+
+        {/* BANNER DE SERVICIO EXTRAORDINARIO / FUERA DE HORARIO */}
+        {isExtraordinaryService && (
+          <div className="p-3 bg-blue-50 border border-blue-200 text-blue-900 text-xs rounded-xl font-medium flex items-start gap-2">
+            <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+            <span>
+              Atendiendo en horario especial. ¡Tus pedidos serán recibidos normalmente!
+            </span>
+          </div>
         )}
 
         {/* BANNER PREVENTIVO SI ESTÁ CERRADO */}
