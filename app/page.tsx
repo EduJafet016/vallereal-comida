@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Tenant } from '@/types';
 import Link from 'next/link';
@@ -22,25 +22,57 @@ export default function RootHomePage() {
   const [loading, setLoading] = useState(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
-  useEffect(() => {
-    async function fetchTenants() {
-      try {
-        const { data, error } = await supabase
-          .from('tenants')
-          .select('*')
-          .eq('is_active', true)
-          .order('name');
+  // Función para obtener todos los locales sin filtrar por is_active
+  const fetchTenants = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('*')
+        .order('name');
 
-        if (error) throw error;
-        setTenants(data || []);
-      } catch (err) {
-        console.error('Error cargando locales:', err);
-      } finally {
-        setLoading(false);
-      }
+      if (error) throw error;
+      setTenants(data || []);
+    } catch (err) {
+      console.error('Error cargando locales:', err);
+    } finally {
+      setLoading(false);
     }
+  }, []);
 
+  useEffect(() => {
     fetchTenants();
+  }, [fetchTenants]);
+
+  // Suscripción en Tiempo Real para el Directorio Completo
+  useEffect(() => {
+    const channel = supabase
+      .channel('realtime-directory')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tenants',
+        },
+        (payload) => {
+          if (payload.eventType === 'UPDATE') {
+            setTenants((prev) =>
+              prev.map((t) =>
+                t.id === payload.new.id ? { ...t, ...payload.new } : t
+              )
+            );
+          } else if (payload.eventType === 'INSERT') {
+            setTenants((prev) => [...prev, payload.new as Tenant]);
+          } else if (payload.eventType === 'DELETE') {
+            setTenants((prev) => prev.filter((t) => t.id === payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const filteredTenants = tenants.filter(
@@ -97,7 +129,7 @@ export default function RootHomePage() {
             <UtensilsCrossed className="w-3.5 h-3.5 text-emerald-600" /> Locales Disponibles
           </h2>
           <span className="text-[11px] font-semibold text-gray-400">
-            {filteredTenants.length} activos
+            {filteredTenants.length} registrados
           </span>
         </div>
 
@@ -115,7 +147,10 @@ export default function RootHomePage() {
         ) : (
           <div className="space-y-3">
             {filteredTenants.map((tenant) => {
-              const isOpen = isStoreOpen(tenant.opening_time, tenant.closing_time);
+              // Lógica de apertura combinada: Horario + Switch is_active
+              const isWithinSchedule = isStoreOpen(tenant.opening_time, tenant.closing_time);
+              const isManualActive = tenant.is_active ?? true;
+              const isOpen = isWithinSchedule && isManualActive;
 
               return (
                 <Link
@@ -129,7 +164,7 @@ export default function RootHomePage() {
                       className={`p-3 rounded-2xl shrink-0 transition-colors ${
                         isOpen
                           ? 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white'
-                          : 'bg-gray-100 text-gray-400'
+                          : 'bg-red-50 text-red-500 group-hover:bg-red-100'
                       }`}
                     >
                       <Store className="w-5 h-5" />
@@ -142,12 +177,12 @@ export default function RootHomePage() {
                           {tenant.name}
                         </h3>
 
-                        {/* Badge de Estado con Pulso Verde */}
+                        {/* Badge de Estado */}
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 ${
                             isOpen
                               ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-gray-100 text-gray-500'
+                              : 'bg-red-100 text-red-700'
                           }`}
                         >
                           {isOpen && (
