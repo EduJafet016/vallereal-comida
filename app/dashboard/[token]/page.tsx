@@ -289,10 +289,10 @@ export default function TenantDashboardPage({ params }: PageProps) {
   const handleDeleteTenant = async () => {
     if (!tenant) return;
 
-    if (deletePinConfirm !== tenant.admin_pin) {
-      alert('El PIN de confirmación es incorrecto.');
-      return;
-    }
+    if (deletePinConfirm !== (tenant as any).admin_pin) {
+  alert('El PIN de confirmación es incorrecto.');
+  return;
+}
 
     setDeletingTenant(true);
 
