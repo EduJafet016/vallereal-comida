@@ -89,7 +89,7 @@ export default function TenantPage({ params }: PageProps) {
     loadData(false);
   }, [loadData]);
 
-  // Realtime Subscription para escuchar cambios en is_active / force_open / datos del tenant en vivo
+  // Realtime Subscription para escuchar cambios en is_active / datos del tenant en vivo
   useEffect(() => {
     if (!tenant?.id) return;
 
@@ -169,16 +169,17 @@ export default function TenantPage({ params }: PageProps) {
     );
   }
 
-  // --- REGLA DE NEGOCIO ---
-  // 1. isWithinSchedule: Ventana de reloj programada.
-  // 2. isManualActive: Switch maestro on/off.
-  // 3. isForceOpen: Switch de atención extraordinaria fuera de horario.
-  // 4. isOpen: Abierto si el switch maestro está activo Y (está en horario O forzó la apertura).
+  // --- REGLA DE NEGOCIO HÍBRIDA ---
+  // 1. Horario de reloj programado habitual
   const isWithinSchedule = isStoreOpen(tenant.opening_time, tenant.closing_time);
-  const isManualActive = tenant.is_active ?? true;
-  const isForceOpen = tenant.force_open ?? false;
+  
+  // 2. Switch manual del comerciante
+  const isManualActive = tenant.is_active ?? false;
 
-  const isOpen = isManualActive && (isWithinSchedule || isForceOpen);
+  // 3. Si el switch está activo, la tienda está abierta.
+  const isOpen = isManualActive;
+
+  // 4. Si está abierta fuera de su horario, activa la advertencia de servicio especial
   const isExtraordinaryService = isOpen && !isWithinSchedule;
 
   const totalCartCount = items.reduce((acc, item) => acc + item.quantity, 0);
@@ -245,9 +246,9 @@ export default function TenantPage({ params }: PageProps) {
           <div className="p-3 bg-red-50 border border-red-200 text-red-900 text-xs rounded-xl font-medium flex items-start gap-2">
             <PowerOff className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
             <span>
-              {!isManualActive
-                ? 'El restaurante ha pausado la recepción de pedidos temporalmente.'
-                : 'Este local se encuentra fuera de su horario de atención.'}
+              {!isWithinSchedule
+                ? 'Este local se encuentra fuera de su horario de atención.'
+                : 'El restaurante ha pausado la recepción de pedidos temporalmente.'}
             </span>
           </div>
         )}

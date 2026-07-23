@@ -43,7 +43,7 @@ export default function RootHomePage() {
     fetchTenants();
   }, [fetchTenants]);
 
-  // Suscripción en Tiempo Real
+  // Suscripción en Tiempo Real para el Directorio
   useEffect(() => {
     const channel = supabase
       .channel('realtime-directory')
@@ -144,17 +144,18 @@ export default function RootHomePage() {
         ) : (
           <div className="space-y-3">
             {filteredTenants.map((tenant) => {
-              // 1. Horario puro de reloj
+              // 1. Evaluamos la ventana de horario automático
               const isWithinSchedule = isStoreOpen(tenant.opening_time, tenant.closing_time);
-              
-              // 2. Evaluaciones explícitas de los flags de BD
-              const isManualActive = tenant.is_active ?? true;
-              const isForceOpen = tenant.force_open === true;
 
-              // 3. Estado ABIERTO
-              const isOpen = isManualActive && (isWithinSchedule || isForceOpen);
-              
-              // 4. Muestra badge 'Fuera de horario' SOLO si está ABIERTO gracias a force_open fuera del horario normal
+              // 2. Leemos el switch del vendedor
+              const isManualActive = tenant.is_active ?? false;
+
+              // REGLA DE NEGOCIO HÍBRIDA:
+              // - Si is_active es FALSE -> CERRADO siempre (Apagado manual o automático fuera de horario)
+              // - Si is_active es TRUE -> ABIERTO siempre (Operación normal o Encendido extraordinario a deshora)
+              const isOpen = isManualActive;
+
+              // Activa el badge "Fuera de horario" solo cuando el vendedor enciende su switch fuera del horario habitual
               const isExtraHours = isOpen && !isWithinSchedule;
 
               return (
