@@ -2,12 +2,22 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Store, Check, Copy, ArrowRight, ShieldCheck, Phone, KeyRound, FileText } from 'lucide-react';
+import { Store, Check, Copy, ArrowRight, ShieldCheck, Phone, KeyRound, FileText, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+
+const formatToSlug = (text: string) => {
+  return text
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+};
 
 export default function RegisterTenantPage() {
   const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [openingTime, setOpeningTime] = useState('09:00');
@@ -18,62 +28,71 @@ export default function RegisterTenantPage() {
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Generar slug automáticamente al escribir el nombre
-  const handleNameChange = (val: string) => {
-    setName(val);
-    const generatedSlug = val
-      .toLowerCase()
-      .trim()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/[\s_-]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-    setSlug(generatedSlug);
+  // Handlers con sanitización de teclado numérico
+  const handlePinChange = (val: string) => {
+    const onlyNums = val.replace(/\D/g, '');
+    if (onlyNums.length <= 4) {
+      setPin(onlyNums);
+    }
+  };
+
+  const handlePhoneChange = (val: string) => {
+    const onlyNums = val.replace(/\D/g, '');
+    setWhatsappNumber(onlyNums);
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (pin.length !== 4 || isNaN(Number(pin))) {
+    if (pin.length !== 4) {
       alert('El PIN debe tener exactamente 4 números.');
       return;
     }
 
-    const cleanPhone = whatsappNumber.replace(/\D/g, '');
-    if (cleanPhone.length < 10) {
+    if (whatsappNumber.length < 10) {
       alert('Ingresa un número de WhatsApp válido (mínimo 10 dígitos).');
       return;
     }
 
     setLoading(true);
 
+    const baseSlug = formatToSlug(name) || `local-${Date.now().toString().slice(-4)}`;
+    const generatedAdminToken = crypto.randomUUID();
+
+    const insertPayload = (targetSlug: string) => ({
+      name: name.trim(),
+      slug: targetSlug,
+      description: description.trim() || null,
+      whatsapp_number: whatsappNumber,
+      opening_time: openingTime,
+      closing_time: closingTime,
+      admin_pin: pin,
+      admin_token: generatedAdminToken,
+      is_active: true,
+    });
+
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('tenants')
-        .insert([
-          {
-            name,
-            slug,
-            description: description.trim() || null,
-            whatsapp_number: cleanPhone,
-            opening_time: openingTime,
-            closing_time: closingTime,
-            admin_pin: pin,
-            is_active: true,
-          },
-        ])
+        .insert([insertPayload(baseSlug)])
         .select('admin_token');
 
+      if (error && (error.code === '23505' || error.message.includes('tenants_slug_key'))) {
+        const uniqueSlug = `${baseSlug}-${Math.random().toString(36).substring(2, 6)}`;
+        const secondTry = await supabase
+          .from('tenants')
+          .insert([insertPayload(uniqueSlug)])
+          .select('admin_token');
+
+        data = secondTry.data;
+        error = secondTry.error;
+      }
+
       if (error) {
-        console.error('Error de Supabase:', error.message);
-        if (error.code === '23505') {
-          alert('El nombre o enlace (slug) de este restaurante ya está registrado. Por favor intenta con otro.');
-        } else {
-          alert(`No se pudo crear el local: ${error.message}`);
-        }
-      } else if (data && data.length > 0) {
-        setCreatedToken(data[0].admin_token);
+        console.error('Error de Supabase:', error);
+        alert(`No se pudo crear el local: ${error.message}`);
       } else {
-        alert('Se creó el local pero no se pudo recuperar el token.');
+        setCreatedToken(data && data[0]?.admin_token ? data[0].admin_token : generatedAdminToken);
       }
     } catch (err: any) {
       console.error('Error inesperado:', err);
@@ -97,7 +116,19 @@ export default function RegisterTenantPage() {
 
   return (
     <main className="p-4 max-w-md mx-auto min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="w-full bg-white p-6 rounded-3xl border shadow-sm space-y-6">
+      <div className="w-full bg-white p-6 rounded-3xl border shadow-sm space-y-6 relative">
+        
+        {/* BOTÓN VOLVER A LA PÁGINA PRINCIPAL */}
+        <div className="flex justify-between items-center border-b pb-3">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-emerald-600 bg-gray-50 hover:bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-full transition-all"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Volver al inicio
+          </Link>
+        </div>
+
         {/* Header */}
         <div className="text-center">
           <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
@@ -121,7 +152,7 @@ export default function RegisterTenantPage() {
                 required
                 placeholder="Ej. Antojitos Doña Lola"
                 value={name}
-                onChange={(e) => handleNameChange(e.target.value)}
+                onChange={(e) => setName(e.target.value)}
                 className="w-full p-3 border rounded-xl text-sm text-gray-900 font-medium placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
@@ -144,31 +175,17 @@ export default function RegisterTenantPage() {
 
             <div>
               <label className="text-xs font-semibold text-gray-700 block mb-1">
-                Enlace del Menú (Slug)
-              </label>
-              <div className="flex items-center gap-1 p-3 border rounded-xl bg-gray-50 text-xs text-gray-500">
-                <span>/</span>
-                <input
-                  type="text"
-                  required
-                  value={slug}
-                  onChange={(e) => setSlug(e.target.value)}
-                  className="w-full bg-transparent font-semibold text-gray-900 focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-1">
                 Número de WhatsApp (para recibir pedidos)
               </label>
               <div className="relative">
                 <input
                   type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   required
                   placeholder="Ej. 2281234567"
                   value={whatsappNumber}
-                  onChange={(e) => setWhatsappNumber(e.target.value)}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
                   className="w-full p-3 pl-10 border rounded-xl text-sm text-gray-900 font-medium placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 />
                 <Phone className="w-4 h-4 text-gray-400 absolute left-3 top-3.5" />
@@ -206,11 +223,13 @@ export default function RegisterTenantPage() {
               </label>
               <input
                 type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 maxLength={4}
                 required
                 placeholder="••••"
                 value={pin}
-                onChange={(e) => setPin(e.target.value)}
+                onChange={(e) => handlePinChange(e.target.value)}
                 className="w-full p-3 border rounded-xl text-center text-lg font-mono text-gray-900 font-bold tracking-widest placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
