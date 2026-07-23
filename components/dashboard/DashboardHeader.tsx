@@ -1,22 +1,29 @@
 'use client';
 
 import Link from 'next/link';
-import { Store, ArrowLeft } from 'lucide-react';
+import { Store, ArrowLeft, ExternalLink } from 'lucide-react';
 
 interface Props {
   tenantName: string;
-  backUrl?: string; // Opcional: por si quieres definir la ruta a donde regresa (ej. /master-admin)
+  slug?: string;
+  isSuperAdmin?: boolean;
 }
 
-export function DashboardHeader({ tenantName, backUrl = '/master-admin' }: Props) {
+export function DashboardHeader({ tenantName, slug, isSuperAdmin }: Props) {
+  // Si no hay slug o es superadmin, regresa a la raíz o al panel máster
+  const backUrl = isSuperAdmin 
+    ? '/master-admin' 
+    : slug 
+      ? `/${slug}` 
+      : '/';
+
   return (
     <header className="border-b pb-4 mb-6 bg-white p-4 rounded-2xl shadow-sm flex items-center justify-between">
       <div className="flex items-center gap-3">
-        {/* BOTÓN VOLVER */}
         <Link
           href={backUrl}
           className="p-2 bg-gray-50 hover:bg-gray-100 border text-gray-600 rounded-xl transition-all active:scale-95 flex items-center justify-center shrink-0"
-          title="Volver a los restaurantes"
+          title="Volver"
         >
           <ArrowLeft className="w-4 h-4" />
         </Link>
@@ -28,6 +35,18 @@ export function DashboardHeader({ tenantName, backUrl = '/master-admin' }: Props
           <p className="text-xs text-gray-500">Panel de Administración Directa</p>
         </div>
       </div>
+
+      {slug && (
+        <Link
+          href={`/${slug}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-emerald-600 font-bold flex items-center gap-1 hover:underline"
+        >
+          <span>Tienda</span>
+          <ExternalLink className="w-3.5 h-3.5" />
+        </Link>
+      )}
     </header>
   );
 }
