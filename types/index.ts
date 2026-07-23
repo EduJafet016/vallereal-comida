@@ -12,6 +12,7 @@ export interface Tenant {
   free_delivery_min_amount: number;
   description?: string;
   is_active?: boolean;
+  force_open?: boolean; // Regla para apertura extraordinaria fuera de horario
   created_at?: string;
 }
 
