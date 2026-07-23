@@ -162,7 +162,7 @@ export default function RootHomePage() {
                 <Link
                   key={tenant.id}
                   href={`/${tenant.slug}`}
-                  prefetch={true}
+                  prefetch={false}
                   className="group block bg-white border border-gray-100 hover:border-emerald-300 p-4 rounded-2xl shadow-sm hover:shadow-md active:scale-[0.99] transition-all relative overflow-hidden"
                 >
                   <div className="flex items-center gap-3.5">

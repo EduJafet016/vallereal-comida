@@ -1,3 +1,4 @@
+export const revalidate = 60;
 import { supabase } from '@/lib/supabase';
 import { Tenant, Category, Product } from '@/types';
 import Link from 'next/link';
