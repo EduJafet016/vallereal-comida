@@ -18,6 +18,7 @@ import {
   ArrowLeft,
   Phone,
   AlertCircle,
+  PowerOff,
 } from 'lucide-react';
 
 interface PageProps {
@@ -66,7 +67,6 @@ export default function TenantPage({ params }: PageProps) {
 
         setCategories(catData || []);
 
-        // Traemos todos los productos sin filtrar por is_available para mostrar agotados
         const { data: prodData } = await supabase
           .from('products')
           .select('*, product_variants(*)')
@@ -88,6 +88,32 @@ export default function TenantPage({ params }: PageProps) {
   useEffect(() => {
     loadData(false);
   }, [loadData]);
+
+  // Realtime Subscription para escuchar cambios en is_active / datos del tenant
+  useEffect(() => {
+    if (!tenant?.id) return;
+
+    const channel = supabase
+      .channel(`realtime-tenant-${tenant.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'tenants',
+          filter: `id=eq.${tenant.id}`,
+        },
+        (payload) => {
+          // Actualizamos el estado local del tenant en tiempo real
+          setTenant((prev) => (prev ? { ...prev, ...payload.new } : null));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tenant?.id]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -144,7 +170,11 @@ export default function TenantPage({ params }: PageProps) {
     );
   }
 
-  const isOpen = isStoreOpen(tenant.opening_time, tenant.closing_time);
+  // Lógica combinada: Horario de atención Y estado manual (is_active)
+  const isWithinSchedule = isStoreOpen(tenant.opening_time, tenant.closing_time);
+  const isManualActive = tenant.is_active ?? true;
+  const isOpen = isWithinSchedule && isManualActive;
+
   const totalCartCount = items.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
@@ -174,7 +204,7 @@ export default function TenantPage({ params }: PageProps) {
         <div className="flex justify-between items-start gap-2">
           <h1 className="text-2xl font-black text-gray-900 leading-tight">{tenant.name}</h1>
 
-          {/* BADGE DE ESTADO (Abierto / Cerrado) */}
+          {/* BADGE DE ESTADO */}
           <span
             className={`text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0 ${
               isOpen
@@ -193,12 +223,21 @@ export default function TenantPage({ params }: PageProps) {
           </p>
         )}
 
-        {/* BANNER PREVENTIVO SI ESTÁ CERRADO */}
-        {!isOpen && (
+        {/* BANNERS PREVENTIVOS DE CIERRE */}
+        {!isManualActive && (
+          <div className="p-3 bg-red-50 border border-red-200 text-red-900 text-xs rounded-xl font-medium flex items-start gap-2">
+            <PowerOff className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+            <span>
+              El restaurante ha pausado la recepción de pedidos temporalmente.
+            </span>
+          </div>
+        )}
+
+        {isManualActive && !isWithinSchedule && (
           <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-xl font-medium flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <span>
-              Este local está cerrado por el momento. Si realizas un pedido, podría no ser atendido de inmediato.
+              Este local se encuentra fuera de su horario de atención.
             </span>
           </div>
         )}
@@ -242,7 +281,8 @@ export default function TenantPage({ params }: PageProps) {
               {categoryProducts.map((product) => {
                 const hasVariants =
                   product.product_variants && product.product_variants.length > 0;
-                const isAvailable = product.is_available;
+                // El producto solo se puede pedir si la tienda está abierta Y el producto está disponible
+                const isAvailable = isOpen && product.is_available;
 
                 return (
                   <div
@@ -270,8 +310,8 @@ export default function TenantPage({ params }: PageProps) {
                           </span>
                         )}
 
-                        {/* Badge Agotado */}
-                        {!isAvailable && (
+                        {/* Badge Agotado o Negocio Cerrado */}
+                        {!product.is_available && (
                           <span className="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
                             Agotado
                           </span>
@@ -293,7 +333,7 @@ export default function TenantPage({ params }: PageProps) {
                       </span>
                     </div>
 
-                    {/* Botón interactivo si está disponible / Badge gris si está agotado */}
+                    {/* Botón interactivo si la tienda está abierta y el producto disponible */}
                     {isAvailable ? (
                       <button
                         onClick={() => handleAddClick(product)}
@@ -304,7 +344,7 @@ export default function TenantPage({ params }: PageProps) {
                       </button>
                     ) : (
                       <span className="text-[11px] font-semibold text-gray-400 bg-gray-200 px-2.5 py-1.5 rounded-xl shrink-0 select-none">
-                        No disponible
+                        {!isOpen ? 'No disponible' : 'Agotado'}
                       </span>
                     )}
                   </div>
