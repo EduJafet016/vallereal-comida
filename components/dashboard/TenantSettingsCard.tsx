@@ -297,4 +297,6 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
       )}
     </div>
   );
-}
+} 
+
+//hola a todos
