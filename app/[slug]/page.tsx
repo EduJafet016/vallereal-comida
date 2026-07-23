@@ -66,11 +66,11 @@ export default function TenantPage({ params }: PageProps) {
 
         setCategories(catData || []);
 
+        // Traemos todos los productos sin filtrar por is_available para mostrar agotados
         const { data: prodData } = await supabase
           .from('products')
           .select('*, product_variants(*)')
-          .eq('tenant_id', tenantData.id)
-          .eq('is_available', true);
+          .eq('tenant_id', tenantData.id);
 
         setProducts(prodData || []);
         setError(null);
@@ -242,38 +242,71 @@ export default function TenantPage({ params }: PageProps) {
               {categoryProducts.map((product) => {
                 const hasVariants =
                   product.product_variants && product.product_variants.length > 0;
+                const isAvailable = product.is_available;
 
                 return (
                   <div
                     key={product.id}
-                    className="flex justify-between items-center p-3.5 border rounded-2xl shadow-sm bg-white hover:border-emerald-200 transition-colors"
+                    className={`flex justify-between items-center p-3.5 border rounded-2xl shadow-sm transition-colors ${
+                      isAvailable
+                        ? 'bg-white hover:border-emerald-200'
+                        : 'bg-gray-50 border-gray-200 opacity-60'
+                    }`}
                   >
                     <div className="flex-1 pr-2">
-                      <div className="flex items-center gap-1.5">
-                        <h3 className="font-semibold text-gray-900 text-sm">{product.name}</h3>
-                        {hasVariants && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h3
+                          className={`font-semibold text-sm ${
+                            isAvailable ? 'text-gray-900' : 'text-gray-500 line-through'
+                          }`}
+                        >
+                          {product.name}
+                        </h3>
+
+                        {/* Badge Opciones */}
+                        {hasVariants && isAvailable && (
                           <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
                             <Layers className="w-3 h-3" /> Opciones
                           </span>
                         )}
+
+                        {/* Badge Agotado */}
+                        {!isAvailable && (
+                          <span className="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                            Agotado
+                          </span>
+                        )}
                       </div>
+
                       {product.description && (
                         <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">
                           {product.description}
                         </p>
                       )}
-                      <span className="text-sm font-bold text-emerald-600 mt-1 block">
+
+                      <span
+                        className={`text-sm font-bold mt-1 block ${
+                          isAvailable ? 'text-emerald-600' : 'text-gray-400'
+                        }`}
+                      >
                         ${product.price.toFixed(2)}
                       </span>
                     </div>
 
-                    <button
-                      onClick={() => handleAddClick(product)}
-                      className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 active:scale-95 transition-all shrink-0"
-                      aria-label={`Agregar ${product.name}`}
-                    >
-                      <Plus className="w-5 h-5" />
-                    </button>
+                    {/* Botón interactivo si está disponible / Badge gris si está agotado */}
+                    {isAvailable ? (
+                      <button
+                        onClick={() => handleAddClick(product)}
+                        className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 active:scale-95 transition-all shrink-0 cursor-pointer"
+                        aria-label={`Agregar ${product.name}`}
+                      >
+                        <Plus className="w-5 h-5" />
+                      </button>
+                    ) : (
+                      <span className="text-[11px] font-semibold text-gray-400 bg-gray-200 px-2.5 py-1.5 rounded-xl shrink-0 select-none">
+                        No disponible
+                      </span>
+                    )}
                   </div>
                 );
               })}
