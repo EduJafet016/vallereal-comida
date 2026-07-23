@@ -132,10 +132,10 @@ export default function TenantPage() {
               <span className="truncate">Valle Real</span>
             </div>
 
-            {tenant.whatsapp && (
+            {tenant.whatsapp_number && (
               <div className="col-span-2 flex items-center gap-1.5 pt-1">
                 <Phone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>{tenant.whatsapp}</span>
+                <span>{tenant.whatsapp_number}</span>
               </div>
             )}
           </div>
