@@ -2,12 +2,12 @@
 
 import { use, useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
-import { Tenant, Category, Product, ProductVariant } from '@/types';
-import { useCart } from '@/context/CartContext';
-import CartModal from '@/components/CartModal';
-import VariantModal from '@/components/VariantModal';
-import { isStoreOpen } from '@/lib/utils';
+import { supabase } from '../../lib/supabase';
+import { Tenant, Category, Product, ProductVariant } from '../../types';
+import { useCart } from '../../context/CartContext';
+import CartModal from '../../components/CartModal';
+import VariantModal from '../../components/VariantModal';
+import { isStoreOpen } from '../../lib/utils';
 import {
   ShoppingBag,
   Plus,
