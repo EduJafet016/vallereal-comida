@@ -25,10 +25,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white text-gray-900`}>
         <CartProvider>
-          <div className="max-w-md mx-auto min-h-screen bg-white shadow-md relative pb-20">
-            {children}
+          <div className="max-w-md mx-auto min-h-screen bg-white relative flex flex-col justify-between pb-6">
+            <div>{children}</div>
           </div>
         </CartProvider>
       </body>
