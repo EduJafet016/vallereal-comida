@@ -12,10 +12,10 @@ interface PageProps {
 export default async function TenantPage({ params }: PageProps) {
   const { slug } = await params;
 
-  // 1. Fetch directo en el servidor de Vercel
+  // 1. Fetch directo en el servidor agregando delivery_fee
   const { data: tenantData } = await supabase
     .from('tenants')
-    .select('id, name, slug, description, whatsapp_number, opening_time, closing_time, is_active')
+    .select('id, name, slug, description, whatsapp_number, opening_time, closing_time, is_active, delivery_fee')
     .eq('slug', slug)
     .single();
 

@@ -47,14 +47,18 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
 
   const isDelivery = deliveryType === 'delivery';
 
-  // Determinación dinámica de tarifa de envío por zona
-  const baseDeliveryFee = zone === 'low'
-    ? (tenant.delivery_fee_low_zone ?? tenant.delivery_fee ?? 10)
-    : (tenant.delivery_fee_high_zone ?? (tenant.delivery_fee ? tenant.delivery_fee + 5 : 20));
+  // Determinación dinámica de tarifa de envío por zona y reglas del local
+  const baseDeliveryFee = 
+    zone === 'low' 
+      ? (tenant.delivery_fee_low_zone ?? tenant.delivery_fee ?? 0) 
+      : (tenant.delivery_fee_high_zone ?? tenant.delivery_fee ?? 0);
 
-  const isFreeDeliveryEligible =
-    (tenant.enable_free_delivery ?? true) &&
-    subtotal >= tenant.free_delivery_min_amount;
+  // Validar si el local tiene activo el envío gratis y si se supera el mínimo
+  const isFreeDeliveryEligible = Boolean(
+    tenant.enable_free_delivery && 
+    tenant.free_delivery_min_amount && 
+    subtotal >= tenant.free_delivery_min_amount
+  );
 
   const deliveryFee = isDelivery
     ? (isFreeDeliveryEligible ? 0 : baseDeliveryFee)
@@ -246,7 +250,7 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
                           </span>
                         </div>
                         <span className="text-[11px] font-bold text-emerald-700 mt-1.5 block">
-                          ${tenant.delivery_fee_low_zone ?? 10}.00
+                          ${tenant.delivery_fee_low_zone ?? tenant.delivery_fee ?? 0}.00
                         </span>
                       </button>
 
@@ -266,7 +270,7 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
                           </span>
                         </div>
                         <span className="text-[11px] font-bold text-emerald-700 mt-1.5 block">
-                          ${tenant.delivery_fee_high_zone ?? 20}.00
+                          ${tenant.delivery_fee_high_zone ?? tenant.delivery_fee ?? 0}.00
                         </span>
                       </button>
                     </div>
