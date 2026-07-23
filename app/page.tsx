@@ -6,10 +6,12 @@ import { Tenant } from '@/types';
 import Link from 'next/link';
 import { Store, ChevronRight } from 'lucide-react';
 import { isStoreOpen } from '@/lib/utils';
+import { AuthModal } from '@/app/components/AuthModal';
 
 export default function RootHomePage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   useEffect(() => {
     async function fetchTenants() {
@@ -45,12 +47,12 @@ export default function RootHomePage() {
           <h2 className="text-xs font-bold uppercase tracking-wider text-gray-400">
             Locales Disponibles
           </h2>
-          <Link
-            href="/registro"
-            className="text-xs font-semibold text-emerald-600 hover:underline"
+          <button
+            onClick={() => setIsAuthOpen(true)}
+            className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer"
           >
-            Registrar mi local
-          </Link>
+            Acceso Comerciantes
+          </button>
         </div>
 
         {loading ? (
@@ -111,6 +113,9 @@ export default function RootHomePage() {
           </div>
         )}
       </section>
+
+      {/* MODAL DE ACCESO / REGISTRO / RECUPERACIÓN */}
+      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
     </main>
   );
 }
