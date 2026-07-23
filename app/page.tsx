@@ -29,7 +29,6 @@ export default function RootHomePage() {
   const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
-    // 1. Detectar si ya se está ejecutando como app instalada (modo standalone)
     if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
       setIsInstalled(true);
     }
@@ -39,7 +38,6 @@ export default function RootHomePage() {
       setDeferredPrompt(e);
     };
 
-    // 2. Detectar justo el momento en que el usuario completa la instalación
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setDeferredPrompt(null);
@@ -88,7 +86,6 @@ export default function RootHomePage() {
     fetchTenants();
   }, [fetchTenants]);
 
-  // Suscripción en Tiempo Real para el Directorio
   useEffect(() => {
     const channel = supabase
       .channel('realtime-directory')
@@ -147,7 +144,6 @@ export default function RootHomePage() {
               </span>
 
               <div className="flex items-center gap-2">
-                {/* Botón de instalación dinámico (desaparece si ya está instalada) */}
                 {!isInstalled && (
                   <button
                     onClick={handleInstallClick}
@@ -189,7 +185,18 @@ export default function RootHomePage() {
         </header>
 
         <section className="max-w-md mx-auto px-4 mt-6 space-y-4">
-          <div className="flex justify-between items-center px-1">
+          {/* Tarjeta de Pedidos Directos arriba */}
+          <div className="bg-emerald-50/60 border border-emerald-100 p-4 rounded-2xl flex items-start gap-3">
+            <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="text-xs space-y-0.5">
+              <p className="font-bold text-emerald-950">Pedidos Directos</p>
+              <p className="text-emerald-800/80 leading-relaxed">
+                Tratas directamente con los vecinos de Valle Real. Tu pedido llega a su WhatsApp sin recargos.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center px-1 pt-2">
             <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
               <UtensilsCrossed className="w-3.5 h-3.5 text-emerald-600" /> Locales Disponibles
             </h2>
@@ -282,16 +289,6 @@ export default function RootHomePage() {
               })}
             </div>
           )}
-
-          <div className="mt-8 bg-emerald-50/60 border border-emerald-100 p-4 rounded-2xl flex items-start gap-3">
-            <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-            <div className="text-xs space-y-0.5">
-              <p className="font-bold text-emerald-950">Pedidos Directos</p>
-              <p className="text-emerald-800/80 leading-relaxed">
-                Tratas directamente con los vecinos de Valle Real. Tu pedido llega a su WhatsApp sin recargos.
-              </p>
-            </div>
-          </div>
         </section>
       </div>
 
