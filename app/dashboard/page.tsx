@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Lock, Store } from 'lucide-react';
+import { Lock } from 'lucide-react';
 
 export default function DashboardIndexPage() {
   return (

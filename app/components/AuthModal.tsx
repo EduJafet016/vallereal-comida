@@ -26,7 +26,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [regName, setRegName] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regPin, setRegPin] = useState('');
-  const [regDesc, setRegDesc] = useState('');
+  const [regDesc] = useState('');
   const [registering, setRegistering] = useState(false);
 
   // Estado Recuperación
@@ -121,8 +121,9 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         router.push(`/dashboard/${adminToken}`);
         onClose();
       }
-    } catch (err: any) {
-      alert(`Error inesperado: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error inesperado';
+      alert(`Error inesperado: ${message}`);
     } finally {
       setRegistering(false);
     }

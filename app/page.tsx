@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Tenant } from '@/types';
+import { BeforeInstallPromptEvent, NavigatorStandalone, Tenant } from '@/types';
 import Link from 'next/link';
 import {
   Store,
@@ -26,17 +26,19 @@ export default function RootHomePage() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   // Estados para la instalación PWA
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [isInstalled, setIsInstalled] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isInstalled, setIsInstalled] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as NavigatorStandalone).standalone === true
+    );
+  });
 
   useEffect(() => {
-    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
-      setIsInstalled(true);
-    }
-
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
 
     const handleAppInstalled = () => {
@@ -67,25 +69,32 @@ export default function RootHomePage() {
     }
   };
 
-  const fetchTenants = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('tenants')
-        .select('*')
-        .order('name');
-
-      if (error) throw error;
-      setTenants(data || []);
-    } catch (err) {
-      console.error('Error cargando locales:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    fetchTenants();
-  }, [fetchTenants]);
+    let cancelled = false;
+
+    async function fetchTenants() {
+      try {
+        const { data, error } = await supabase
+          .from('tenants')
+          .select('*')
+          .order('name');
+
+        if (cancelled) return;
+        if (error) throw error;
+        setTenants(data || []);
+      } catch (err) {
+        console.error('Error cargando locales:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void fetchTenants();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const channel = supabase

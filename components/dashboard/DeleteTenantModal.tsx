@@ -16,7 +16,7 @@ export function DeleteTenantModal({ tenant, token }: Props) {
   const [deleting, setDeleting] = useState(false);
 
   const handleDeleteTenant = async () => {
-    if (deletePinConfirm !== (tenant as any).admin_pin) {
+    if (deletePinConfirm !== tenant.admin_pin) {
       alert('El PIN de confirmación es incorrecto.');
       return;
     }
@@ -34,8 +34,9 @@ export function DeleteTenantModal({ tenant, token }: Props) {
       alert('Tu restaurante ha sido eliminado correctamente.');
       localStorage.removeItem(`auth_token_${token}`);
       window.location.href = '/';
-    } catch (err: any) {
-      alert(`Error al eliminar: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      alert(`Error al eliminar: ${message}`);
     } finally {
       setDeleting(false);
     }

@@ -13,7 +13,18 @@ export interface Tenant {
   description?: string;
   is_active?: boolean;
   force_open?: boolean; // Regla para apertura extraordinaria fuera de horario
+  admin_pin?: string;
+  admin_token?: string;
   created_at?: string;
+}
+
+export interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+export interface NavigatorStandalone extends Navigator {
+  standalone?: boolean;
 }
 
 export interface Category {

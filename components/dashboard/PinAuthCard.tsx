@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Tenant } from '@/types';
 import { Lock, ShieldAlert } from 'lucide-react';
 
@@ -28,17 +28,28 @@ export function PinAuthCard({ tenant, token, onAuthenticated }: Props) {
     }
     return null;
   });
+  const [now, setNow] = useState(() => Date.now());
 
-  const isLockedOut = lockoutUntil && Date.now() < lockoutUntil;
+  useEffect(() => {
+    if (!lockoutUntil) return;
+
+    const tick = () => setNow(Date.now());
+    tick();
+
+    const intervalId = window.setInterval(tick, 60_000);
+    return () => window.clearInterval(intervalId);
+  }, [lockoutUntil]);
+
+  const isLockedOut = lockoutUntil !== null && now < lockoutUntil;
   const remainingMinutes = isLockedOut
-    ? Math.ceil((lockoutUntil - Date.now()) / 60000)
+    ? Math.ceil((lockoutUntil - now) / 60000)
     : 0;
 
   const handleVerifyPin = (e: React.FormEvent) => {
     e.preventDefault();
     if (isLockedOut) return;
 
-    const validPin = (tenant as any)?.admin_pin || '1234';
+    const validPin = tenant.admin_pin || '1234';
 
     if (pinInput.trim() === validPin) {
       onAuthenticated();

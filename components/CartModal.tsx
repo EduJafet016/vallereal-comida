@@ -15,7 +15,7 @@ interface CartModalProps {
 const CUSTOMER_DATA_KEY = 'valle_real_customer_info';
 
 export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
-  const { items, updateQuantity, removeFromCart, clearCart, subtotal } = useCart();
+  const { items, updateQuantity, clearCart, subtotal } = useCart();
 
   const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
@@ -26,21 +26,23 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
 
   // Cargar datos previos del cliente si existen al abrir el modal
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+
+    queueMicrotask(() => {
       const savedData = localStorage.getItem(CUSTOMER_DATA_KEY);
-      if (savedData) {
-        try {
-          const { name, address: savedAddress, notes, zone: savedZone } = JSON.parse(savedData);
-          if (name) setCustomerName(name);
-          if (savedAddress) setAddress(savedAddress);
-          if (notes) setOrderNotes(notes);
-          if (savedZone) setZone(savedZone);
-          setHasSavedData(true);
-        } catch (e) {
-          console.error('Error al cargar datos guardados:', e);
-        }
+      if (!savedData) return;
+
+      try {
+        const { name, address: savedAddress, notes, zone: savedZone } = JSON.parse(savedData);
+        if (name) setCustomerName(name);
+        if (savedAddress) setAddress(savedAddress);
+        if (notes) setOrderNotes(notes);
+        if (savedZone) setZone(savedZone);
+        setHasSavedData(true);
+      } catch (e) {
+        console.error('Error al cargar datos guardados:', e);
       }
-    }
+    });
   }, [isOpen]);
 
   if (!isOpen) return null;

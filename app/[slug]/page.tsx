@@ -1,23 +1,20 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Tenant, Product, Category, CartItem, ProductVariant } from '@/types';
 import { 
   ArrowLeft, 
-  Store, 
   Clock, 
   MapPin, 
   Phone, 
   Plus, 
   Minus,
-  Check, 
   ShoppingBag, 
   Sparkles,
   X,
   Send,
-  Trash2
 } from 'lucide-react';
 import { isStoreOpen } from '@/lib/utils';
 import Link from 'next/link';
@@ -39,41 +36,50 @@ export default function TenantPage() {
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerNotes, setCustomerNotes] = useState('');
 
-  const fetchTenantData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const { data: tenantData, error: tenantError } = await supabase
-        .from('tenants')
-        .select('*')
-        .eq('slug', slug)
-        .single();
-
-      if (tenantError || !tenantData) {
-        router.push('/');
-        return;
-      }
-
-      setTenant(tenantData);
-
-      const [catRes, prodRes] = await Promise.all([
-        supabase.from('categories').select('*').eq('tenant_id', tenantData.id).order('name'),
-        supabase.from('products').select('*, product_variants(*)').eq('tenant_id', tenantData.id).eq('is_available', true)
-      ]);
-
-      setCategories(catRes.data || []);
-      setProducts(prodRes.data || []);
-    } catch (err) {
-      console.error('Error cargando datos del local:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [slug, router]);
-
   useEffect(() => {
-    if (slug) {
-      fetchTenantData();
+    if (!slug) return;
+
+    let cancelled = false;
+
+    async function fetchTenantData() {
+      try {
+        const { data: tenantData, error: tenantError } = await supabase
+          .from('tenants')
+          .select('*')
+          .eq('slug', slug)
+          .single();
+
+        if (cancelled) return;
+
+        if (tenantError || !tenantData) {
+          router.push('/');
+          return;
+        }
+
+        setTenant(tenantData);
+
+        const [catRes, prodRes] = await Promise.all([
+          supabase.from('categories').select('*').eq('tenant_id', tenantData.id).order('name'),
+          supabase.from('products').select('*, product_variants(*)').eq('tenant_id', tenantData.id).eq('is_available', true),
+        ]);
+
+        if (cancelled) return;
+
+        setCategories(catRes.data || []);
+        setProducts(prodRes.data || []);
+      } catch (err) {
+        console.error('Error cargando datos del local:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
-  }, [slug, fetchTenantData]);
+
+    void fetchTenantData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, router]);
 
   // Manejo del carrito con soporte para variantes
   const addToCart = (product: Product, selectedVariant?: ProductVariant) => {

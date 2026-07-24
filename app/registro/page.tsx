@@ -94,7 +94,7 @@ export default function RegisterTenantPage() {
       } else {
         setCreatedToken(data && data[0]?.admin_token ? data[0].admin_token : generatedAdminToken);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error inesperado:', err);
       alert('Ocurrió un error inesperado al procesar la solicitud.');
     } finally {

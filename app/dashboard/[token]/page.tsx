@@ -30,14 +30,19 @@ export default function TenantDashboardPage({ params }: PageProps) {
 
   // 1. Obtener datos del Tenant
   useEffect(() => {
+    if (!token) return;
+
+    let cancelled = false;
+
     async function fetchTenantByToken() {
       try {
-        setLoadingTenant(true);
         const { data, error } = await supabase
           .from('tenants')
           .select('*')
           .eq('admin_token', token)
           .single();
+
+        if (cancelled) return;
 
         if (error || !data) {
           setTenantError(true);
@@ -51,13 +56,17 @@ export default function TenantDashboardPage({ params }: PageProps) {
           setIsAuthenticated(true);
         }
       } catch {
-        setTenantError(true);
+        if (!cancelled) setTenantError(true);
       } finally {
-        setLoadingTenant(false);
+        if (!cancelled) setLoadingTenant(false);
       }
     }
 
-    if (token) fetchTenantByToken();
+    void fetchTenantByToken();
+
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   // 2. Bypass automático para SuperAdmin y token con PIN en URL
@@ -69,7 +78,7 @@ export default function TenantDashboardPage({ params }: PageProps) {
         const urlParams = new URLSearchParams(window.location.search);
         const pinFromUrl = urlParams.get('pin');
 
-        if (pinFromUrl && pinFromUrl === (tenant as any)?.admin_pin) {
+        if (pinFromUrl && pinFromUrl === tenant.admin_pin) {
           setIsAuthenticated(true);
           localStorage.setItem(`auth_token_${token}`, 'true');
           return;
@@ -86,9 +95,8 @@ export default function TenantDashboardPage({ params }: PageProps) {
     checkAutoUnlock();
   }, [tenant, token]);
 
-  // 3. Cargar Categorías y Productos
-  const loadData = useCallback(async () => {
-    if (!tenant || !isAuthenticated) return;
+  const reloadProducts = useCallback(async () => {
+    if (!tenant) return;
 
     setLoadingProducts(true);
 
@@ -100,11 +108,15 @@ export default function TenantDashboardPage({ params }: PageProps) {
     setCategories(catData || []);
     setProducts(prodData || []);
     setLoadingProducts(false);
-  }, [tenant, isAuthenticated]);
+  }, [tenant]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (!tenant || !isAuthenticated) return;
+
+    queueMicrotask(() => {
+      void reloadProducts();
+    });
+  }, [tenant, isAuthenticated, reloadProducts]);
 
   if (loadingTenant) {
     return <div className="p-8 text-center text-sm text-gray-500">Cargando panel...</div>;
@@ -142,7 +154,7 @@ export default function TenantDashboardPage({ params }: PageProps) {
 
           <SecurityCard
             tenant={tenant}
-            onPinUpdated={(newPin) => setTenant({ ...tenant, admin_pin: newPin } as any)}
+            onPinUpdated={(newPin) => setTenant({ ...tenant, admin_pin: newPin })}
           />
 
           <ProductsSection
@@ -150,7 +162,7 @@ export default function TenantDashboardPage({ params }: PageProps) {
             categories={categories}
             products={products}
             loading={loadingProducts}
-            onReload={loadData}
+            onReload={reloadProducts}
           />
 
           <DeleteTenantModal tenant={tenant} token={token} />

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { Tenant } from '@/types';
 import { ShieldCheck, Store, ExternalLink, LogOut, Lock } from 'lucide-react';
 
 export default function MasterAdminPage() {
@@ -9,21 +10,33 @@ export default function MasterAdminPage() {
   const [password, setPassword] = useState('');
   const [authenticated, setAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [tenants, setTenants] = useState<any[]>([]);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
 
-  // Comprobar sesión existente
-  useEffect(() => {
-    checkSession();
+  const fetchTenants = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('tenants')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      setTenants(data);
+    }
   }, []);
 
-  const checkSession = async () => {
+  const checkSession = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session && session.user.app_metadata?.role === 'superadmin') {
       setAuthenticated(true);
-      fetchTenants();
+      await fetchTenants();
     }
     setLoading(false);
-  };
+  }, [fetchTenants]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void checkSession();
+    });
+  }, [checkSession]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,23 +55,12 @@ export default function MasterAdminPage() {
 
     if (data.user.app_metadata?.role === 'superadmin') {
       setAuthenticated(true);
-      fetchTenants();
+      await fetchTenants();
     } else {
       alert('Acceso denegado: No tienes permisos de Super Admin.');
       await supabase.auth.signOut();
     }
     setLoading(false);
-  };
-
-  const fetchTenants = async () => {
-    const { data, error } = await supabase
-      .from('tenants')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (!error && data) {
-      setTenants(data);
-    }
   };
 
   const handleLogout = async () => {
