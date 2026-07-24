@@ -41,6 +41,26 @@ export interface ProductVariant {
   price_override?: number;
 }
 
+// Nuevas interfaces para el sistema profesional de modificadores y extras
+export interface Modifier {
+  id: string;
+  group_id: string;
+  name: string;
+  price_delta: number;
+  is_available: boolean;
+}
+
+export interface ModifierGroup {
+  id: string;
+  product_id: string;
+  tenant_id: string;
+  name: string;
+  is_required: boolean;
+  min_selections: number;
+  max_selections: number;
+  modifiers?: Modifier[];
+}
+
 export interface Product {
   id: string;
   tenant_id: string;
@@ -50,11 +70,18 @@ export interface Product {
   price: number;
   is_available: boolean;
   product_variants?: ProductVariant[];
+  modifier_groups?: ModifierGroup[]; // Añadido para soportar los grupos de modificadores
 }
 
 export interface CartItem {
   product: Product;
   selectedVariant?: ProductVariant;
+  selectedModifiers?: {
+    groupName: string;
+    modifierName: string;
+    priceDelta: number;
+  }[];
+  finalUnitPrice?: number; // Precio base calculado + modificadores
   notes?: string;
   quantity: number;
 }

@@ -34,14 +34,32 @@ export default async function TenantPage({ params }: Props) {
       .order('name'),
     supabase
       .from('products')
-      .select('*, product_variants(*)')
+      .select(`
+        *,
+        product_variants(*),
+        modifier_groups (
+          id,
+          product_id,
+          tenant_id,
+          name,
+          is_required,
+          min_selections,
+          max_selections,
+          modifiers (
+            id,
+            group_id,
+            name,
+            price_delta,
+            is_available
+          )
+        )
+      `)
       .eq('tenant_id', tenant.id)
-      .eq('is_available', true),
   ]);
 
   // 3. Auditoría de servidor: Esto se imprimirá en tu TERMINAL (donde corre npm run dev), no en el navegador
   if (catRes.error) console.error("Error de Categorías (¿RLS?):", catRes.error);
-  if (prodRes.error) console.error("Error de Productos (¿RLS?):", prodRes.error);
+  if (prodRes.error) console.error("Error de Productos y Modificadores (¿RLS?):", prodRes.error);
   console.log(`Menú cargado para ${tenant.name} -> Categorías: ${catRes.data?.length || 0} | Productos: ${prodRes.data?.length || 0}`);
 
   return (

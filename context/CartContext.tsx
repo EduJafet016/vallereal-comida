@@ -10,7 +10,16 @@ interface CartState {
 }
 
 type CartAction =
-  | { type: 'ADD_ITEM'; payload: { product: Product; variant?: ProductVariant; notes?: string } }
+  | { 
+      type: 'ADD_ITEM'; 
+      payload: { 
+        product: Product; 
+        variant?: ProductVariant; 
+        selectedModifiers?: { groupName: string; modifierName: string; priceDelta: number }[];
+        finalUnitPrice?: number;
+        notes?: string;
+      } 
+    }
   | { type: 'REMOVE_ITEM'; payload: number }
   | { type: 'UPDATE_QUANTITY'; payload: { index: number; quantity: number } }
   | { type: 'CLEAR_CART' };
@@ -19,10 +28,10 @@ type CartAction =
 const CartStateContext = createContext<CartState | undefined>(undefined);
 const CartDispatchContext = createContext<React.Dispatch<CartAction> | undefined>(undefined);
 
-// Función pura para el cálculo algorítmico del subtotal
+// Función pura para el cálculo algorítmico del subtotal adaptada a modificadores y variantes
 const calculateSubtotal = (items: CartItem[]): number => {
   return items.reduce((sum, item) => {
-    const price = item.selectedVariant?.price_override ?? item.product.price;
+    const price = item.finalUnitPrice ?? item.selectedVariant?.price_override ?? item.product.price;
     return sum + (price * item.quantity);
   }, 0);
 };
@@ -31,13 +40,29 @@ const calculateSubtotal = (items: CartItem[]): number => {
 const cartReducer = (state: CartState, action: CartAction): CartState => {
   switch (action.type) {
     case 'ADD_ITEM': {
-      const { product, variant, notes } = action.payload;
-      const existingIndex = state.items.findIndex(
-        (item) =>
-          item.product.id === product.id &&
-          item.selectedVariant?.id === variant?.id &&
-          item.notes === notes
-      );
+      const { product, variant, selectedModifiers, finalUnitPrice, notes } = action.payload;
+      
+      // Cálculo del precio unitario final para este ítem
+      const unitPrice = finalUnitPrice ?? variant?.price_override ?? product.price;
+
+      // Buscar si ya existe un ítem idéntico (mismo producto, misma variante y mismos modificadores)
+      const existingIndex = state.items.findIndex((item) => {
+        const sameProduct = item.product.id === product.id;
+        const sameVariant = item.selectedVariant?.id === variant?.id;
+        const sameNotes = item.notes === notes;
+        
+        // Comparación segura de los modificadores seleccionados
+        const itemMods = item.selectedModifiers || [];
+        const payloadMods = selectedModifiers || [];
+        const sameModifiers = 
+          itemMods.length === payloadMods.length &&
+          itemMods.every((mod, idx) => 
+            mod.groupName === payloadMods[idx].groupName && 
+            mod.modifierName === payloadMods[idx].modifierName
+          );
+
+        return sameProduct && sameVariant && sameModifiers && sameNotes;
+      });
 
       let newItems;
       if (existingIndex > -1) {
@@ -48,7 +73,17 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
           quantity: newItems[existingIndex].quantity + 1 
         };
       } else {
-        newItems = [...state.items, { product, selectedVariant: variant, notes, quantity: 1 }];
+        newItems = [
+          ...state.items, 
+          { 
+            product, 
+            selectedVariant: variant, 
+            selectedModifiers,
+            finalUnitPrice: unitPrice,
+            notes, 
+            quantity: 1 
+          }
+        ];
       }
       return { items: newItems, subtotal: calculateSubtotal(newItems) };
     }

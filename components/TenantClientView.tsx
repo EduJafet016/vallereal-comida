@@ -70,6 +70,12 @@ export default function TenantClientView({
   }, [tenant.id]);
 
   const handleAddClick = (product: Product) => {
+    // Inspección exhaustiva en consola del navegador (F12)
+    console.log("=== AUDITORÍA DE PRODUCTO ===");
+    console.log("Nombre:", product.name);
+    console.log("Modifier Groups:", product.modifier_groups);
+    console.log("Product Variants:", product.product_variants);
+
     // Interceptamos si hay productos de otro restaurante en el carrito usando modal custom
     if (items.length > 0 && cartTenantId && cartTenantId !== tenant.id) {
       setPendingProduct(product);
@@ -77,10 +83,22 @@ export default function TenantClientView({
       return;
     }
 
-    if (product.product_variants && product.product_variants.length > 0) {
+    // Verificamos de forma estricta si cuenta con grupos de opciones o variantes
+    const hasModifiers = Array.isArray(product.modifier_groups) && product.modifier_groups.length > 0;
+    const hasVariants = Array.isArray(product.product_variants) && product.product_variants.length > 0;
+
+    if (hasModifiers || hasVariants) {
+      console.log("-> Abriendo VariantModal con éxito");
       setSelectedProductForVariant(product);
     } else {
-      dispatch({ type: 'ADD_ITEM', payload: { product } });
+      console.log("-> Agregando directo al carrito (sin opciones)");
+      dispatch({ 
+        type: 'ADD_ITEM', 
+        payload: { 
+          product, 
+          finalUnitPrice: product.price
+        } 
+      });
     }
   };
 
@@ -179,8 +197,9 @@ export default function TenantClientView({
 
             <div className="space-y-3">
               {categoryProducts.map((product) => {
-                const hasVariants =
-                  product.product_variants && product.product_variants.length > 0;
+                const hasModifiers =
+                  (Array.isArray(product.modifier_groups) && product.modifier_groups.length > 0) ||
+                  (Array.isArray(product.product_variants) && product.product_variants.length > 0);
                 const isAvailable = isOpen && product.is_available;
 
                 return (
@@ -202,7 +221,7 @@ export default function TenantClientView({
                           {product.name}
                         </h3>
 
-                        {hasVariants && isAvailable && (
+                        {hasModifiers && isAvailable && (
                           <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
                             <Layers className="w-3 h-3" /> Opciones
                           </span>
@@ -255,7 +274,7 @@ export default function TenantClientView({
         <div className="fixed bottom-4 left-0 right-0 max-w-md mx-auto px-4 z-40">
           <button
             onClick={() => setIsCartOpen(true)}
-            className="w-full bg-emerald-600 text-white rounded-2xl p-4 flex justify-between items-center shadow-lg active:scale-[0.98] transition-all hover:bg-emerald-700 font-medium"
+            className="w-full bg-emerald-600 text-white rounded-2xl p-4 flex justify-between items-center shadow-lg active:scale-[0.98] transition-all hover:bg-emerald-700 font-medium cursor-pointer"
           >
             <div className="flex items-center gap-3">
               <div className="relative">
@@ -275,7 +294,7 @@ export default function TenantClientView({
         </div>
       )}
 
-      {/* Modal de Advertencia por cambio de local (Inmune a bloqueo de navegador) */}
+      {/* Modal de Advertencia por cambio de local */}
       {showTenantMismatchModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-gray-100 text-center space-y-4">
@@ -302,10 +321,18 @@ export default function TenantClientView({
                 onClick={() => {
                   dispatch({ type: 'CLEAR_CART' });
                   if (pendingProduct) {
-                    if (pendingProduct.product_variants && pendingProduct.product_variants.length > 0) {
+                    const hasMod = Array.isArray(pendingProduct.modifier_groups) && pendingProduct.modifier_groups.length > 0;
+                    const hasVar = Array.isArray(pendingProduct.product_variants) && pendingProduct.product_variants.length > 0;
+                    if (hasMod || hasVar) {
                       setSelectedProductForVariant(pendingProduct);
                     } else {
-                      dispatch({ type: 'ADD_ITEM', payload: { product: pendingProduct } });
+                      dispatch({ 
+                        type: 'ADD_ITEM', 
+                        payload: { 
+                          product: pendingProduct,
+                          finalUnitPrice: pendingProduct.price
+                        } 
+                      });
                     }
                   }
                   setShowTenantMismatchModal(false);
@@ -321,7 +348,7 @@ export default function TenantClientView({
       )}
 
       <VariantModal
-        isOpen={!!selectedProductForVariant}
+        isOpen={selectedProductForVariant !== null}
         onClose={() => setSelectedProductForVariant(null)}
         product={selectedProductForVariant}
       />
