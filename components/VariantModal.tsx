@@ -2,21 +2,21 @@
 
 import { useState } from 'react';
 import { Product, ProductVariant } from '@/types';
+import { useCartDispatch } from '../context/CartContext'; // 1. Importación del dispatch segregado
 import { X, Check } from 'lucide-react';
 
 interface VariantModalProps {
   isOpen: boolean;
   onClose: () => void;
   product: Product | null;
-  onConfirm: (product: Product, variant: ProductVariant, notes?: string) => void;
 }
 
 export default function VariantModal({
   isOpen,
   onClose,
   product,
-  onConfirm,
 }: VariantModalProps) {
+  const dispatch = useCartDispatch(); // 2. Acceso al dispatcher estable
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [notes, setNotes] = useState('');
 
@@ -26,7 +26,18 @@ export default function VariantModal({
 
   const handleConfirm = () => {
     if (!selectedVariant) return;
-    onConfirm(product, selectedVariant, notes);
+
+    // 3. Dispatch directo de la acción de la FSM
+    dispatch({
+      type: 'ADD_ITEM',
+      payload: {
+        product,
+        variant: selectedVariant,
+        notes: notes.trim() || undefined,
+      },
+    });
+
+    // Reset de estado local
     setSelectedVariant(null);
     setNotes('');
     onClose();
@@ -44,7 +55,7 @@ export default function VariantModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-full text-gray-400 hover:bg-gray-100"
+            className="p-1 rounded-full text-gray-400 hover:bg-gray-100 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>

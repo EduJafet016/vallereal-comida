@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useCart } from '../context/CartContext';
+import { useCartState, useCartDispatch } from '../context/CartContext';
 import { generateWhatsAppLink } from '../lib/whatsapp';
 import { Tenant } from '../types';
 import { X, Plus, Minus, Trash2, Send, Sparkles } from 'lucide-react';
@@ -15,7 +15,9 @@ interface CartModalProps {
 const CUSTOMER_DATA_KEY = 'valle_real_customer_info';
 
 export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
-  const { items, updateQuantity, clearCart, subtotal } = useCart();
+  // 1. Separación de lectura y escritura del contexto
+  const { items, subtotal } = useCartState();
+  const dispatch = useCartDispatch();
 
   const [customerName, setCustomerName] = useState('');
   const [address, setAddress] = useState('');
@@ -105,7 +107,9 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
 
     // Abrir WhatsApp en pestaña nueva
     window.open(whatsappUrl, '_blank');
-    clearCart();
+    
+    // 2. Transición de estado puro para limpiar el carrito
+    dispatch({ type: 'CLEAR_CART' });
     onClose();
   };
 
@@ -159,7 +163,11 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
                       <div className="flex items-center gap-2 bg-white px-2 py-1 border rounded-lg shadow-sm">
                         <button
                           type="button"
-                          onClick={() => updateQuantity(index, item.quantity - 1)}
+                          // 3. Dispatch explícito para restar cantidad
+                          onClick={() => dispatch({ 
+                            type: 'UPDATE_QUANTITY', 
+                            payload: { index, quantity: item.quantity - 1 } 
+                          })}
                           className="text-gray-500 hover:text-emerald-600"
                         >
                           {item.quantity === 1 ? (
@@ -173,7 +181,11 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
                         </span>
                         <button
                           type="button"
-                          onClick={() => updateQuantity(index, item.quantity + 1)}
+                          // 4. Dispatch explícito para sumar cantidad
+                          onClick={() => dispatch({ 
+                            type: 'UPDATE_QUANTITY', 
+                            payload: { index, quantity: item.quantity + 1 } 
+                          })}
                           className="text-gray-500 hover:text-emerald-600"
                         >
                           <Plus className="w-4 h-4" />

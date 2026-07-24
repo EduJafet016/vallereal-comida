@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { Tenant, Category, Product, ProductVariant } from '@/types';
-import { useCart } from '@/context/CartContext';
+import { Tenant, Category, Product } from '@/types';
+import { useCartState, useCartDispatch } from '@/context/CartContext';
 import CartModal from '@/components/CartModal';
 import VariantModal from '@/components/VariantModal';
 import { isStoreOpen } from '@/lib/utils';
@@ -36,7 +36,9 @@ export default function TenantClientView({
   const [selectedProductForVariant, setSelectedProductForVariant] =
     useState<Product | null>(null);
 
-  const { addToCart, items, subtotal } = useCart();
+  // 1. Consumimos los contextos ortogonales de forma separada
+  const { items, subtotal } = useCartState();
+  const dispatch = useCartDispatch();
 
   // Escuchar únicamente cambios de estado en vivo (Realtime)
   useEffect(() => {
@@ -63,18 +65,12 @@ export default function TenantClientView({
 
   const handleAddClick = (product: Product) => {
     if (product.product_variants && product.product_variants.length > 0) {
+      // Abre el modal (el modal se encarga de hacer el dispatch)
       setSelectedProductForVariant(product);
     } else {
-      addToCart(product);
+      // 2. Dispatch directo para productos sin variantes
+      dispatch({ type: 'ADD_ITEM', payload: { product } });
     }
-  };
-
-  const handleConfirmVariant = (
-    product: Product,
-    variant: ProductVariant,
-    notes?: string
-  ) => {
-    addToCart(product, variant, notes);
   };
 
   // Regla de Negocio
@@ -269,11 +265,11 @@ export default function TenantClientView({
         </div>
       )}
 
+      {/* 3. Como usamos la Opción 1, ya no enviamos onConfirm */}
       <VariantModal
         isOpen={!!selectedProductForVariant}
         onClose={() => setSelectedProductForVariant(null)}
         product={selectedProductForVariant}
-        onConfirm={handleConfirmVariant}
       />
 
       <CartModal
