@@ -35,10 +35,10 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
       if (!savedData) return;
 
       try {
-        const { name, address: savedAddress, notes, zone: savedZone } = JSON.parse(savedData);
+        const { name, address: savedAddress, zone: savedZone } = JSON.parse(savedData);
         if (name) setCustomerName(name);
         if (savedAddress) setAddress(savedAddress);
-        if (notes) setOrderNotes(notes);
+  
         if (savedZone) setZone(savedZone);
         setHasSavedData(true);
       } catch (e) {
@@ -87,7 +87,6 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
     const customerDataToSave = {
       name: customerName.trim(),
       address: address.trim(),
-      notes: orderNotes.trim(),
       zone,
     };
     localStorage.setItem(CUSTOMER_DATA_KEY, JSON.stringify(customerDataToSave));
