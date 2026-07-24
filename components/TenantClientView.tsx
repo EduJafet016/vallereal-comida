@@ -36,11 +36,17 @@ export default function TenantClientView({
   const [selectedProductForVariant, setSelectedProductForVariant] =
     useState<Product | null>(null);
 
-  // 1. Consumimos los contextos ortogonales de forma separada
+  // Estados para el Modal personalizado de colisión de carritos
+  const [showTenantMismatchModal, setShowTenantMismatchModal] = useState(false);
+  const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
+
   const { items, subtotal } = useCartState();
   const dispatch = useCartDispatch();
 
-  // Escuchar únicamente cambios de estado en vivo (Realtime)
+  // Validación segura del tenant del carrito actual
+  const cartTenantId = items.length > 0 ? items[0].product.tenant_id : null;
+  const isCartFromThisTenant = items.length === 0 || !cartTenantId || cartTenantId === tenant.id;
+
   useEffect(() => {
     const channel = supabase
       .channel(`realtime-tenant-${tenant.id}`)
@@ -64,16 +70,20 @@ export default function TenantClientView({
   }, [tenant.id]);
 
   const handleAddClick = (product: Product) => {
+    // Interceptamos si hay productos de otro restaurante en el carrito usando modal custom
+    if (items.length > 0 && cartTenantId && cartTenantId !== tenant.id) {
+      setPendingProduct(product);
+      setShowTenantMismatchModal(true);
+      return;
+    }
+
     if (product.product_variants && product.product_variants.length > 0) {
-      // Abre el modal (el modal se encarga de hacer el dispatch)
       setSelectedProductForVariant(product);
     } else {
-      // 2. Dispatch directo para productos sin variantes
       dispatch({ type: 'ADD_ITEM', payload: { product } });
     }
   };
 
-  // Regla de Negocio
   const isWithinSchedule = isStoreOpen(tenant.opening_time, tenant.closing_time);
   const isOpen = tenant.is_active ?? false;
   const isExtraordinaryService = isOpen && !isWithinSchedule;
@@ -241,7 +251,7 @@ export default function TenantClientView({
         );
       })}
 
-      {totalCartCount > 0 && (
+      {totalCartCount > 0 && isCartFromThisTenant && (
         <div className="fixed bottom-4 left-0 right-0 max-w-md mx-auto px-4 z-40">
           <button
             onClick={() => setIsCartOpen(true)}
@@ -265,7 +275,51 @@ export default function TenantClientView({
         </div>
       )}
 
-      {/* 3. Como usamos la Opción 1, ya no enviamos onConfirm */}
+      {/* Modal de Advertencia por cambio de local (Inmune a bloqueo de navegador) */}
+      {showTenantMismatchModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-gray-100 text-center space-y-4">
+            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto text-xl font-bold">
+              ⚠️
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 leading-snug">
+              ¿Cambiar de restaurante?
+            </h3>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Tienes productos de otro restaurante en tu carrito. Si continúas, se vaciará el pedido actual para empezar uno nuevo aquí.
+            </p>
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                onClick={() => {
+                  setShowTenantMismatchModal(false);
+                  setPendingProduct(null);
+                }}
+                className="w-full py-3 bg-gray-100 text-gray-700 rounded-2xl font-bold text-xs hover:bg-gray-200 transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  dispatch({ type: 'CLEAR_CART' });
+                  if (pendingProduct) {
+                    if (pendingProduct.product_variants && pendingProduct.product_variants.length > 0) {
+                      setSelectedProductForVariant(pendingProduct);
+                    } else {
+                      dispatch({ type: 'ADD_ITEM', payload: { product: pendingProduct } });
+                    }
+                  }
+                  setShowTenantMismatchModal(false);
+                  setPendingProduct(null);
+                }}
+                className="w-full py-3 bg-emerald-600 text-white rounded-2xl font-bold text-xs hover:bg-emerald-700 transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+              >
+                Sí, vaciar y pedir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <VariantModal
         isOpen={!!selectedProductForVariant}
         onClose={() => setSelectedProductForVariant(null)}
