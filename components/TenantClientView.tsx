@@ -15,9 +15,9 @@ import {
   MapPin,
   Layers,
   ArrowLeft,
-  Phone,
   PowerOff,
   Sparkles,
+  CalendarDays,
 } from 'lucide-react';
 
 interface Props {
@@ -25,6 +25,29 @@ interface Props {
   categories: Category[];
   products: Product[];
 }
+
+// === FUNCIONES AUXILIARES PURAS (Fuera del ciclo de renderizado) ===
+
+// Transforma "HH:mm" o "HH:mm:ss" a "h:mm AM/PM" mediante aritmética modular
+const formatTime12h = (timeStr: string) => {
+  if (!timeStr) return '';
+  const [hourStr, minuteStr] = timeStr.split(':');
+  const hour = parseInt(hourStr, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const formattedHour = hour % 12 || 12; // Si es 0 (medianoche), lo convierte a 12
+  return `${formattedHour}:${minuteStr} ${ampm}`;
+};
+
+// Mapea el array de PostgreSQL a un string legible, desplazando el Domingo al final
+const formatWorkingDays = (days: number[] | undefined | null) => {
+  if (!days || days.length === 7) return 'Todos los días';
+  const daysMap: Record<number, string> = { 1: 'L', 2: 'M', 3: 'M', 4: 'J', 5: 'V', 6: 'S', 0: 'D' };
+  
+  const sorted = [...days].sort((a, b) => (a === 0 ? 7 : a) - (b === 0 ? 7 : b));
+  return sorted.map(d => daysMap[d]).join('-');
+};
+
+// =====================================================================
 
 export default function TenantClientView({
   initialTenant,
@@ -70,20 +93,17 @@ export default function TenantClientView({
   }, [tenant.id]);
 
   const handleAddClick = (product: Product) => {
-    // Inspección exhaustiva en consola del navegador (F12)
     console.log("=== AUDITORÍA DE PRODUCTO ===");
     console.log("Nombre:", product.name);
     console.log("Modifier Groups:", product.modifier_groups);
     console.log("Product Variants:", product.product_variants);
 
-    // Interceptamos si hay productos de otro restaurante en el carrito usando modal custom
     if (items.length > 0 && cartTenantId && cartTenantId !== tenant.id) {
       setPendingProduct(product);
       setShowTenantMismatchModal(true);
       return;
     }
 
-    // Verificamos de forma estricta si cuenta con grupos de opciones o variantes
     const hasModifiers = Array.isArray(product.modifier_groups) && product.modifier_groups.length > 0;
     const hasVariants = Array.isArray(product.product_variants) && product.product_variants.length > 0;
 
@@ -162,23 +182,24 @@ export default function TenantClientView({
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-gray-500 pt-2 border-t border-gray-100">
-          <span className="flex items-center gap-1 font-medium">
+        {/* Sección de Metadatos: Horario, Ubicación y Días Condicionales */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] sm:text-xs text-gray-500 pt-2 border-t border-gray-100">
+          <div className="flex items-center gap-1.5 font-medium">
             <Clock className="w-3.5 h-3.5 text-emerald-600" />
-            {tenant.opening_time.slice(0, 5)} - {tenant.closing_time.slice(0, 5)} hrs
-          </span>
+            <span>{formatTime12h(tenant.opening_time)} - {formatTime12h(tenant.closing_time)}</span>
+          </div>
 
-          <span className="flex items-center gap-1 font-medium">
+          <div className="flex items-center gap-1.5 font-medium">
             <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-            Valle Real
-          </span>
+            <span>Valle Real</span>
+          </div>
 
-          {tenant.whatsapp_number && (
-            <span className="flex items-center gap-1 font-medium text-gray-600">
-              <Phone className="w-3.5 h-3.5 text-emerald-600" />
-              {tenant.whatsapp_number}
-            </span>
-          )}
+          
+            <div className="flex items-center gap-1.5 font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-md">
+              <CalendarDays className="w-3.5 h-3.5" />
+              <span>Días: {formatWorkingDays(tenant.working_days)}</span>
+            </div>
+        
         </div>
       </header>
 
