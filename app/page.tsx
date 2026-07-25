@@ -12,7 +12,6 @@ import {
   MapPin,
   UtensilsCrossed,
   ShieldCheck,
-  Sparkles,
   Download,
   Heart,
 } from 'lucide-react';
@@ -80,7 +79,6 @@ export default function RootHomePage() {
 
     async function fetchTenants() {
       try {
-        // Modificamos la consulta para traer los productos y categorías anidados de cada tenant
         const { data, error } = await supabase
           .from('tenants')
           .select(`
@@ -139,34 +137,31 @@ export default function RootHomePage() {
     };
   }, []);
 
-  // Lógica de Búsqueda Multicriterio (Local OR Categoría OR Producto)
+  // Lógica de Búsqueda y Ordenamiento Estricto
   const filteredTenants = tenants
     .filter((t) => {
       const query = search.toLowerCase().trim();
-      if (!query) return true; // Si no hay búsqueda, mostramos todos
+      if (!query) return true;
 
-      // 1. ¿Coincide con el nombre o descripción del Vendedor?
       const matchTenant = 
         t.name.toLowerCase().includes(query) || 
         (t.description && t.description.toLowerCase().includes(query));
 
-      // 2. ¿Coincide con alguna Categoría de este vendedor?
       const matchCategory = t.categories?.some(cat => 
         cat.name.toLowerCase().includes(query)
       );
 
-      // 3. ¿Coincide con algún Platillo (producto) de este vendedor?
       const matchProduct = t.products?.some(prod => 
         prod.name.toLowerCase().includes(query) ||
         (prod.description && prod.description.toLowerCase().includes(query))
       );
 
-      // Si cualquiera de las 3 es verdadera, devolvemos el vendedor
       return matchTenant || matchCategory || matchProduct;
     })
     .sort((a, b) => {
-      const aOpen = a.is_active ?? false;
-      const bOpen = b.is_active ?? false;
+      // Para ordenar, el restaurante debe estar MANUALMENTE activo Y DENTRO DE SU HORARIO
+      const aOpen = (a.is_active ?? false) && isStoreOpen(a.opening_time, a.closing_time);
+      const bOpen = (b.is_active ?? false) && isStoreOpen(b.opening_time, b.closing_time);
 
       if (aOpen && !bOpen) return -1;
       if (!aOpen && bOpen) return 1;
@@ -226,7 +221,6 @@ export default function RootHomePage() {
         </header>
 
         <section className="max-w-md mx-auto px-4 mt-6 space-y-4">
-          {/* Tarjeta de Pedidos Directos arriba */}
           <div className="bg-emerald-50/60 border border-emerald-100 p-4 rounded-2xl flex items-start gap-3">
             <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
             <div className="text-xs space-y-0.5">
@@ -262,15 +256,18 @@ export default function RootHomePage() {
               {filteredTenants.map((tenant) => {
                 const isWithinSchedule = isStoreOpen(tenant.opening_time, tenant.closing_time);
                 const isManualActive = tenant.is_active ?? false;
-                const isOpen = isManualActive;
-                const isExtraHours = isOpen && !isWithinSchedule;
+                
+                // LÓGICA ESTRICTA: Solo abierto si el switch está prendido Y está dentro de su horario
+                const isOpen = isManualActive && isWithinSchedule;
 
                 return (
                   <Link
                     key={tenant.id}
                     href={`/${tenant.slug}`}
                     prefetch={false}
-                    className="group block bg-white border border-gray-100 hover:border-emerald-300 p-4 rounded-2xl shadow-xs hover:shadow-md active:scale-[0.99] transition-all relative overflow-hidden"
+                    className={`group block bg-white border p-4 rounded-2xl shadow-xs hover:shadow-md active:scale-[0.99] transition-all relative overflow-hidden ${
+                      isOpen ? 'border-gray-100 hover:border-emerald-300' : 'border-gray-100 opacity-80'
+                    }`}
                   >
                     <div className="flex items-center gap-3.5">
                       <div
@@ -285,7 +282,9 @@ export default function RootHomePage() {
 
                       <div className="flex-1 min-w-0 space-y-0.5">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-gray-900 text-sm truncate group-hover:text-emerald-700 transition-colors">
+                          <h3 className={`font-bold text-sm truncate transition-colors ${
+                            isOpen ? 'text-gray-900 group-hover:text-emerald-700' : 'text-gray-500'
+                          }`}>
                             {tenant.name}
                           </h3>
 
@@ -310,20 +309,16 @@ export default function RootHomePage() {
                         )}
 
                         <div className="flex items-center gap-1 text-[11px] text-gray-400 pt-0.5">
-                          <Clock className="w-3 h-3 text-emerald-600 shrink-0" />
+                          <Clock className={`w-3 h-3 shrink-0 ${isOpen ? 'text-emerald-600' : 'text-gray-400'}`} />
                           <span>
                             {tenant.opening_time.slice(0, 5)} - {tenant.closing_time.slice(0, 5)} hrs
                           </span>
-
-                          {isExtraHours && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-600 font-bold ml-1 bg-blue-50 px-1.5 py-0.5 rounded-md">
-                              <Sparkles className="w-2.5 h-2.5" /> Fuera de horario
-                            </span>
-                          )}
                         </div>
                       </div>
 
-                      <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all shrink-0" />
+                      <ChevronRight className={`w-5 h-5 transition-all shrink-0 ${
+                        isOpen ? 'text-gray-300 group-hover:text-emerald-600 group-hover:translate-x-0.5' : 'text-gray-200'
+                      }`} />
                     </div>
                   </Link>
                 );
@@ -331,7 +326,6 @@ export default function RootHomePage() {
             </div>
           )}
 
-          {/* Footer sutil para cerrar la página con estilo */}
           <div className="pt-8 pb-4 text-center space-y-1">
             <p className="text-xs font-semibold text-gray-400 flex items-center justify-center gap-1">
               Hecho con <Heart className="w-3 h-3 text-red-500 fill-red-500" /> para Valle Real by EduJafet016
