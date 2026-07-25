@@ -3,12 +3,22 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Tenant } from '@/types';
-import { Settings, Truck, Power, Loader2 } from 'lucide-react';
+import { Settings, Truck, Power, Loader2, CalendarDays } from 'lucide-react';
 
 interface Props {
   tenant: Tenant;
   onTenantUpdated: (updated: Tenant) => void;
 }
+
+const WEEK_DAYS = [
+  { id: 1, label: 'L' },
+  { id: 2, label: 'M' },
+  { id: 3, label: 'M' },
+  { id: 4, label: 'J' },
+  { id: 5, label: 'V' },
+  { id: 6, label: 'S' },
+  { id: 0, label: 'D' }, // Postgres usa 0 para Domingo
+];
 
 export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
   const [isEditing, setIsEditing] = useState(false);
@@ -26,10 +36,14 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
   const [editFeeHigh, setEditFeeHigh] = useState(tenant.delivery_fee_high_zone?.toString() ?? '20');
   const [editEnableFree, setEditEnableFree] = useState(tenant.enable_free_delivery ?? true);
   const [editFreeMinAmount, setEditFreeMinAmount] = useState(tenant.free_delivery_min_amount?.toString() ?? '150');
+  
+  // Array de días activos (por defecto todos si es null o no existe)
+  const [editWorkingDays, setEditWorkingDays] = useState<number[]>(
+    tenant.working_days ?? [0, 1, 2, 3, 4, 5, 6]
+  );
 
   const isActive = tenant.is_active ?? true;
 
-  // Cambiar rápido el estado del negocio directamente desde la vista lectura
   const handleQuickStatusToggle = async () => {
     setTogglingStatus(true);
     const nextState = !tenant.is_active;
@@ -49,11 +63,24 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
     setTogglingStatus(false);
   };
 
+  const toggleWorkingDay = (dayId: number) => {
+    setEditWorkingDays(prev => 
+      prev.includes(dayId) 
+        ? prev.filter(d => d !== dayId) 
+        : [...prev, dayId]
+    );
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanPhone = editWhatsapp.replace(/\D/g, '');
     if (cleanPhone.length < 10) {
       alert('Ingresa un número de WhatsApp válido.');
+      return;
+    }
+
+    if (editWorkingDays.length === 0) {
+      alert('Debes seleccionar al menos un día de trabajo.');
       return;
     }
 
@@ -66,6 +93,7 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
       whatsapp_number: cleanPhone,
       opening_time: editOpeningTime,
       closing_time: editClosingTime,
+      working_days: editWorkingDays,
       delivery_fee_low_zone: parseFloat(editFeeLow) || 0,
       delivery_fee_high_zone: parseFloat(editFeeHigh) || 0,
       enable_free_delivery: editEnableFree,
@@ -88,6 +116,13 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
       setIsEditing(false);
     }
     setSaving(false);
+  };
+
+  // Función auxiliar para renderizar los días activos en la vista de lectura
+  const renderActiveDays = () => {
+    const activeDays = tenant.working_days ?? [0, 1, 2, 3, 4, 5, 6];
+    if (activeDays.length === 7) return 'Lunes a Domingo';
+    return WEEK_DAYS.filter(d => activeDays.includes(d.id)).map(d => d.label).join(' - ');
   };
 
   return (
@@ -146,6 +181,7 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
             <p><strong className="text-gray-900">Nombre:</strong> {tenant.name}</p>
             <p><strong className="text-gray-900">Descripción:</strong> {tenant.description || 'Sin descripción'}</p>
             <p><strong className="text-gray-900">WhatsApp:</strong> {tenant.whatsapp_number}</p>
+            <p><strong className="text-gray-900">Días Laborales:</strong> {renderActiveDays()}</p>
             <p><strong className="text-gray-900">Horario:</strong> {tenant.opening_time.slice(0, 5)} - {tenant.closing_time.slice(0, 5)} hrs</p>
 
             <div className="pt-2 border-t mt-2 space-y-1 bg-gray-50 p-2.5 rounded-xl border">
@@ -213,7 +249,32 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="pt-2 border-t border-gray-100">
+            <label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5 mb-2">
+              <CalendarDays className="w-4 h-4 text-emerald-600" /> Días de Trabajo
+            </label>
+            <div className="flex items-center justify-between gap-1">
+              {WEEK_DAYS.map((day) => {
+                const isActiveDay = editWorkingDays.includes(day.id);
+                return (
+                  <button
+                    key={day.id}
+                    type="button"
+                    onClick={() => toggleWorkingDay(day.id)}
+                    className={`w-8 h-8 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                      isActiveDay
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                    }`}
+                  >
+                    {day.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-2">
             <div>
               <label className="text-xs font-semibold text-gray-700 block mb-1">Apertura</label>
               <input

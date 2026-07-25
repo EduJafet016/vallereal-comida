@@ -5,6 +5,7 @@ export interface Tenant {
   whatsapp_number: string;
   opening_time: string;
   closing_time: string;
+  working_days?: number[];
   delivery_fee: number; // Se mantiene por retrocompatibilidad
   delivery_fee_low_zone: number;
   delivery_fee_high_zone: number;
