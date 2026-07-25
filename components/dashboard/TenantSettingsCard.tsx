@@ -27,6 +27,8 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
   const [editEnableFree, setEditEnableFree] = useState(tenant.enable_free_delivery ?? true);
   const [editFreeMinAmount, setEditFreeMinAmount] = useState(tenant.free_delivery_min_amount?.toString() ?? '150');
 
+  const isActive = tenant.is_active ?? true;
+
   // Cambiar rápido el estado del negocio directamente desde la vista lectura
   const handleQuickStatusToggle = async () => {
     setTogglingStatus(true);
@@ -88,8 +90,6 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
     setSaving(false);
   };
 
-  const isActive = tenant.is_active ?? true;
-
   return (
     <div className="bg-white p-4 rounded-2xl border shadow-sm space-y-4">
       <div className="flex justify-between items-center border-b pb-2">
@@ -131,7 +131,7 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
             <button
               onClick={handleQuickStatusToggle}
               disabled={togglingStatus}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all border flex items-center gap-1.5 active:scale-95 ${
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all border flex items-center gap-1.5 active:scale-95 cursor-pointer ${
                 isActive
                   ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
                   : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
@@ -289,7 +289,7 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
           <button
             type="submit"
             disabled={saving}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-md active:scale-[0.98] disabled:opacity-50 mt-2"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-md active:scale-[0.98] disabled:opacity-50 mt-2 cursor-pointer"
           >
             {saving ? 'Guardando...' : 'Guardar Cambios'}
           </button>
@@ -297,6 +297,4 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
       )}
     </div>
   );
-} 
-
-//hola a todos
+}

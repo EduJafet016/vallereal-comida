@@ -12,6 +12,7 @@ import {
   MapPin,
   UtensilsCrossed,
   ShieldCheck,
+  Sparkles,
   Download,
   Heart,
 } from 'lucide-react';
@@ -137,7 +138,7 @@ export default function RootHomePage() {
     };
   }, []);
 
-  // Lógica de Búsqueda y Ordenamiento Estricto
+  // Lógica de Búsqueda Multicriterio
   const filteredTenants = tenants
     .filter((t) => {
       const query = search.toLowerCase().trim();
@@ -159,9 +160,9 @@ export default function RootHomePage() {
       return matchTenant || matchCategory || matchProduct;
     })
     .sort((a, b) => {
-      // Para ordenar, el restaurante debe estar MANUALMENTE activo Y DENTRO DE SU HORARIO
-      const aOpen = (a.is_active ?? false) && isStoreOpen(a.opening_time, a.closing_time);
-      const bOpen = (b.is_active ?? false) && isStoreOpen(b.opening_time, b.closing_time);
+      // Ordenamos priorizando si están activos manualmente
+      const aOpen = a.is_active ?? false;
+      const bOpen = b.is_active ?? false;
 
       if (aOpen && !bOpen) return -1;
       if (!aOpen && bOpen) return 1;
@@ -255,10 +256,12 @@ export default function RootHomePage() {
             <div className="space-y-3">
               {filteredTenants.map((tenant) => {
                 const isWithinSchedule = isStoreOpen(tenant.opening_time, tenant.closing_time);
-                const isManualActive = tenant.is_active ?? false;
                 
-                // LÓGICA ESTRICTA: Solo abierto si el switch está prendido Y está dentro de su horario
-                const isOpen = isManualActive && isWithinSchedule;
+                // EL BOTÓN MANDA: Si está encendido, apareces abierto pase lo que pase.
+                const isOpen = tenant.is_active ?? false;
+                
+                // Si está prendido pero ya cerró su horario normal, es hora extra
+                const isExtraHours = isOpen && !isWithinSchedule;
 
                 return (
                   <Link
@@ -313,6 +316,13 @@ export default function RootHomePage() {
                           <span>
                             {tenant.opening_time.slice(0, 5)} - {tenant.closing_time.slice(0, 5)} hrs
                           </span>
+
+                          {/* ¡Regresó la etiqueta de horas extras! */}
+                          {isExtraHours && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-600 font-bold ml-1 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                              <Sparkles className="w-2.5 h-2.5" /> Fuera de horario
+                            </span>
+                          )}
                         </div>
                       </div>
 
