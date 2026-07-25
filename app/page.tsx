@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { BeforeInstallPromptEvent, NavigatorStandalone, Tenant } from '@/types';
+import { BeforeInstallPromptEvent, NavigatorStandalone, Tenant, Product, Category } from '@/types';
 import Link from 'next/link';
 import {
   Store,
@@ -19,8 +19,14 @@ import {
 import { isStoreOpen } from '@/lib/utils';
 import { AuthModal } from '@/app/components/AuthModal';
 
+// Extendemos el tipo Tenant para que TypeScript sepa que ahora trae sus productos y categorías anidados
+type TenantWithMenu = Tenant & {
+  products?: Pick<Product, 'name' | 'description'>[];
+  categories?: Pick<Category, 'name'>[];
+};
+
 export default function RootHomePage() {
-  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [tenants, setTenants] = useState<TenantWithMenu[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -74,16 +80,22 @@ export default function RootHomePage() {
 
     async function fetchTenants() {
       try {
+        // Modificamos la consulta para traer los productos y categorías anidados de cada tenant
         const { data, error } = await supabase
           .from('tenants')
-          .select('*')
+          .select(`
+            *,
+            products(name, description),
+            categories(name)
+          `)
           .order('name');
 
         if (cancelled) return;
         if (error) throw error;
+        
         setTenants(data || []);
       } catch (err) {
-        console.error('Error cargando locales:', err);
+        console.error('Error cargando locales con menús:', err);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -114,7 +126,7 @@ export default function RootHomePage() {
               )
             );
           } else if (payload.eventType === 'INSERT') {
-            setTenants((prev) => [...prev, payload.new as Tenant]);
+            setTenants((prev) => [...prev, payload.new as TenantWithMenu]);
           } else if (payload.eventType === 'DELETE') {
             setTenants((prev) => prev.filter((t) => t.id !== payload.old.id));
           }
@@ -127,12 +139,31 @@ export default function RootHomePage() {
     };
   }, []);
 
+  // Lógica de Búsqueda Multicriterio (Local OR Categoría OR Producto)
   const filteredTenants = tenants
-    .filter(
-      (t) =>
-        t.name.toLowerCase().includes(search.toLowerCase()) ||
-        t.description?.toLowerCase().includes(search.toLowerCase())
-    )
+    .filter((t) => {
+      const query = search.toLowerCase().trim();
+      if (!query) return true; // Si no hay búsqueda, mostramos todos
+
+      // 1. ¿Coincide con el nombre o descripción del Vendedor?
+      const matchTenant = 
+        t.name.toLowerCase().includes(query) || 
+        (t.description && t.description.toLowerCase().includes(query));
+
+      // 2. ¿Coincide con alguna Categoría de este vendedor?
+      const matchCategory = t.categories?.some(cat => 
+        cat.name.toLowerCase().includes(query)
+      );
+
+      // 3. ¿Coincide con algún Platillo (producto) de este vendedor?
+      const matchProduct = t.products?.some(prod => 
+        prod.name.toLowerCase().includes(query) ||
+        (prod.description && prod.description.toLowerCase().includes(query))
+      );
+
+      // Si cualquiera de las 3 es verdadera, devolvemos el vendedor
+      return matchTenant || matchCategory || matchProduct;
+    })
     .sort((a, b) => {
       const aOpen = a.is_active ?? false;
       const bOpen = b.is_active ?? false;
@@ -185,7 +216,7 @@ export default function RootHomePage() {
               <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-5 z-10" />
               <input
                 type="text"
-                placeholder="Buscar negocio, postre o platillo..."
+                placeholder="Buscar negocio, categoría o platillo..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 bg-white text-gray-900 placeholder:text-gray-400 rounded-2xl text-xs font-medium shadow-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all"
@@ -211,7 +242,7 @@ export default function RootHomePage() {
               <UtensilsCrossed className="w-3.5 h-3.5 text-emerald-600" /> Locales Disponibles
             </h2>
             <span className="text-[11px] font-semibold text-gray-400">
-              {filteredTenants.length} registrados
+              {filteredTenants.length} encontrados
             </span>
           </div>
 
@@ -223,8 +254,8 @@ export default function RootHomePage() {
             </div>
           ) : filteredTenants.length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center space-y-2">
-              <p className="text-sm font-semibold text-gray-700">No se encontraron locales</p>
-              <p className="text-xs text-gray-400">Intenta buscar con otra palabra clave.</p>
+              <p className="text-sm font-semibold text-gray-700">No se encontraron resultados</p>
+              <p className="text-xs text-gray-400">Intenta buscar con otra palabra clave de platillo, categoría o local.</p>
             </div>
           ) : (
             <div className="space-y-3">
