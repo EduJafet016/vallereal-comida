@@ -1,8 +1,7 @@
 'use client';
 
-import { use, useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Tenant, Product, Category } from '@/types';
+import { use } from 'react';
+import { useTenantDashboard } from '@/hooks/useTenantDashboard';
 
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
 import { PinAuthCard } from '@/components/dashboard/PinAuthCard';
@@ -20,105 +19,18 @@ interface PageProps {
 export default function TenantDashboardPage({ params }: PageProps) {
   const { token } = use(params);
 
-  const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [loadingTenant, setLoadingTenant] = useState(true);
-  const [tenantError, setTenantError] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(false);
-
-  // 1. Obtener datos del Tenant
-  useEffect(() => {
-    if (!token) return;
-
-    let cancelled = false;
-
-    async function fetchTenantByToken() {
-      try {
-        const { data, error } = await supabase
-          .from('tenants')
-          .select('*')
-          .eq('admin_token', token)
-          .single();
-
-        if (cancelled) return;
-
-        if (error || !data) {
-          setTenantError(true);
-          return;
-        }
-
-        setTenant(data);
-
-        const savedAuth = localStorage.getItem(`auth_token_${token}`);
-        if (savedAuth === 'true') {
-          setIsAuthenticated(true);
-        }
-      } catch {
-        if (!cancelled) setTenantError(true);
-      } finally {
-        if (!cancelled) setLoadingTenant(false);
-      }
-    }
-
-    void fetchTenantByToken();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
-
-  // 2. Bypass automático para SuperAdmin y token con PIN en URL
-  useEffect(() => {
-    if (!tenant) return;
-
-    const checkAutoUnlock = async () => {
-      if (typeof window !== 'undefined') {
-        const urlParams = new URLSearchParams(window.location.search);
-        const pinFromUrl = urlParams.get('pin');
-
-        if (pinFromUrl && pinFromUrl === tenant.admin_pin) {
-          setIsAuthenticated(true);
-          localStorage.setItem(`auth_token_${token}`, 'true');
-          return;
-        }
-      }
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.app_metadata?.role === 'superadmin') {
-        setIsAuthenticated(true);
-        localStorage.setItem(`auth_token_${token}`, 'true');
-      }
-    };
-
-    checkAutoUnlock();
-  }, [tenant, token]);
-
-  const reloadProducts = useCallback(async () => {
-    if (!tenant) return;
-
-    setLoadingProducts(true);
-
-    const [{ data: catData }, { data: prodData }] = await Promise.all([
-      supabase.from('categories').select('*').eq('tenant_id', tenant.id).order('sort_order'),
-      // AQUÍ ESTÁ LA MAGIA: Incluimos modifier_groups(id) para que el frontend detecte las opciones de los platillos
-      supabase.from('products').select('*, categories(name), modifier_groups(id)').eq('tenant_id', tenant.id).order('category_id'),
-    ]);
-
-    setCategories(catData || []);
-    setProducts(prodData || []);
-    setLoadingProducts(false);
-  }, [tenant]);
-
-  useEffect(() => {
-    if (!tenant || !isAuthenticated) return;
-
-    queueMicrotask(() => {
-      void reloadProducts();
-    });
-  }, [tenant, isAuthenticated, reloadProducts]);
+  const {
+    tenant,
+    setTenant,
+    loadingTenant,
+    tenantError,
+    isAuthenticated,
+    setIsAuthenticated,
+    categories,
+    products,
+    loadingProducts,
+    reloadProducts,
+  } = useTenantDashboard(token);
 
   if (loadingTenant) {
     return <div className="p-8 text-center text-sm text-gray-500">Cargando panel...</div>;
@@ -159,7 +71,6 @@ export default function TenantDashboardPage({ params }: PageProps) {
             onPinUpdated={(newPin) => setTenant({ ...tenant, admin_pin: newPin })}
           />
 
-          {/* === GESTOR DE INVENTARIO GLOBAL === */}
           <GlobalIngredientsCard tenantId={tenant.id} />
 
           <ProductsSection

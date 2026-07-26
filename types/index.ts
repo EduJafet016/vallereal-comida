@@ -96,3 +96,9 @@ export interface CartItem {
   notes?: string;
   quantity: number;
 }
+
+export type TenantWithMenu = Tenant & {
+  products?: Pick<Product, 'name' | 'description'>[];
+  categories?: Pick<Category, 'name'>[];
+  logo_url?: string | null;
+};

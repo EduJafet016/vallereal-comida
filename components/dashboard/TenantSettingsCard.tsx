@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Tenant } from '@/types';
-import { Settings, Truck, Power, Loader2, CalendarDays, Upload, Image as ImageIcon } from 'lucide-react';
+import { Settings, Truck, Power, Loader2, Upload } from 'lucide-react';
+import { TenantScheduleInputs } from './TenantScheduleInputs';
+import { TenantDeliveryInputs } from './TenantDeliveryInputs';
 
 interface Props {
   tenant: Tenant;
@@ -38,7 +40,6 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
   const [editEnableFree, setEditEnableFree] = useState(tenant.enable_free_delivery ?? true);
   const [editFreeMinAmount, setEditFreeMinAmount] = useState(tenant.free_delivery_min_amount?.toString() ?? '150');
   
-  // Array de días activos (por defecto todos si es null o no existe)
   const [editWorkingDays, setEditWorkingDays] = useState<number[]>(
     tenant.working_days ?? [0, 1, 2, 3, 4, 5, 6]
   );
@@ -85,21 +86,18 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
       const fileName = `${tenant.id}-${Date.now()}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      // 1. Subir al bucket 'tenant-logos'
       const { error: uploadError } = await supabase.storage
         .from('tenant-logos')
         .upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // 2. Obtener URL pública
       const { data: publicUrlData } = supabase.storage
         .from('tenant-logos')
         .getPublicUrl(filePath);
 
       const publicUrl = publicUrlData.publicUrl;
 
-      // 3. Actualizar la base de datos en la tabla tenants
       const { error: updateError } = await supabase
         .from('tenants')
         .update({ logo_url: publicUrl })
@@ -107,7 +105,6 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
 
       if (updateError) throw updateError;
 
-      // Actualizar el estado global del tenant
       onTenantUpdated({ ...tenant, logo_url: publicUrl } as Tenant);
     } catch (error) {
       console.error('Error al subir el logotipo:', error);
@@ -164,7 +161,6 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
     setSaving(false);
   };
 
-  // Función auxiliar para renderizar los días activos en la vista de lectura
   const renderActiveDays = () => {
     const activeDays = tenant.working_days ?? [0, 1, 2, 3, 4, 5, 6];
     if (activeDays.length === 7) return 'Lunes a Domingo';
@@ -187,7 +183,6 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
 
       {!isEditing ? (
         <div className="space-y-4">
-          {/* HEADER DEL LOCAL CON LOGO */}
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xl shadow-xs shrink-0 border border-emerald-100 overflow-hidden">
               {tenantLogo ? (
@@ -202,7 +197,6 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
             </div>
           </div>
 
-          {/* CONTROL RÁPIDO DE APERTURA / CIERRE */}
           <div className="bg-gray-50 p-3 rounded-xl border flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div
@@ -262,7 +256,6 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
         </div>
       ) : (
         <form onSubmit={handleSave} className="space-y-3 pt-1">
-          {/* SECCIÓN DE LOGOTIPO EN EDICIÓN */}
           <div className="flex items-center gap-4 p-3 bg-gray-50 border border-gray-200 rounded-xl">
             <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xl shrink-0 border border-emerald-100 overflow-hidden shadow-xs">
               {tenantLogo ? (
@@ -293,7 +286,6 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
             </div>
           </div>
 
-          {/* SWITCH EN MODO EDICIÓN */}
           <div className="p-2.5 bg-gray-50 border rounded-xl flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-800">Recibir Pedidos (Apertura)</span>
             <label className="relative inline-flex items-center cursor-pointer">
@@ -339,103 +331,26 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
             />
           </div>
 
-          <div className="pt-2 border-t border-gray-100">
-            <label className="text-xs font-semibold text-gray-700 flex items-center gap-1.5 mb-2">
-              <CalendarDays className="w-4 h-4 text-emerald-600" /> Días de Trabajo
-            </label>
-            <div className="flex items-center justify-between gap-1">
-              {WEEK_DAYS.map((day) => {
-                const isActiveDay = editWorkingDays.includes(day.id);
-                return (
-                  <button
-                    key={day.id}
-                    type="button"
-                    onClick={() => toggleWorkingDay(day.id)}
-                    className={`w-8 h-8 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                      isActiveDay
-                        ? 'bg-emerald-600 text-white shadow-md'
-                        : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
-                    }`}
-                  >
-                    {day.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <TenantScheduleInputs
+            editOpeningTime={editOpeningTime}
+            setEditOpeningTime={setEditOpeningTime}
+            editClosingTime={editClosingTime}
+            setEditClosingTime={setEditClosingTime}
+            editWorkingDays={editWorkingDays}
+            toggleWorkingDay={toggleWorkingDay}
+            weekDays={WEEK_DAYS}
+          />
 
-          <div className="grid grid-cols-2 gap-2 pt-2">
-            <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-1">Apertura</label>
-              <input
-                type="time"
-                value={editOpeningTime}
-                onChange={(e) => setEditOpeningTime(e.target.value)}
-                className="w-full p-2 border rounded-xl text-xs text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-1">Cierre</label>
-              <input
-                type="time"
-                value={editClosingTime}
-                onChange={(e) => setEditClosingTime(e.target.value)}
-                className="w-full p-2 border rounded-xl text-xs text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="pt-2 border-t space-y-2">
-            <span className="text-xs font-bold text-gray-800 block">Costos de Envío por Zona</span>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[11px] font-semibold text-gray-600 block mb-0.5">Parte Baja ($)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={editFeeLow}
-                  onChange={(e) => setEditFeeLow(e.target.value)}
-                  className="w-full p-2 border rounded-xl text-xs text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-semibold text-gray-600 block mb-0.5">Parte Alta ($)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={editFeeHigh}
-                  onChange={(e) => setEditFeeHigh(e.target.value)}
-                  className="w-full p-2 border rounded-xl text-xs text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <label className="flex items-center gap-2 cursor-pointer pt-1">
-              <input
-                type="checkbox"
-                checked={editEnableFree}
-                onChange={(e) => setEditEnableFree(e.target.checked)}
-                className="w-4 h-4 text-emerald-600 accent-emerald-600 rounded"
-              />
-              <span className="text-xs font-semibold text-gray-800">
-                Ofrecer Envío Gratis por consumo mínimo
-              </span>
-            </label>
-
-            {editEnableFree && (
-              <div>
-                <label className="text-[11px] font-semibold text-gray-600 block mb-0.5">Monto mínimo ($)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={editFreeMinAmount}
-                  onChange={(e) => setEditFreeMinAmount(e.target.value)}
-                  className="w-full p-2 border rounded-xl text-xs text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-              </div>
-            )}
-          </div>
+          <TenantDeliveryInputs
+            editFeeLow={editFeeLow}
+            setEditFeeLow={setEditFeeLow}
+            editFeeHigh={editFeeHigh}
+            setEditFeeHigh={setEditFeeHigh}
+            editEnableFree={editEnableFree}
+            setEditEnableFree={setEditEnableFree}
+            editFreeMinAmount={editFreeMinAmount}
+            setEditFreeMinAmount={setEditFreeMinAmount}
+          />
 
           <button
             type="submit"

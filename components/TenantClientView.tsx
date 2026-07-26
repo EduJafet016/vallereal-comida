@@ -7,17 +7,14 @@ import { Tenant, Category, Product } from '@/types';
 import { useCartState, useCartDispatch } from '@/context/CartContext';
 import CartModal from '@/components/CartModal';
 import VariantModal from '@/components/VariantModal';
+import { TenantHeader } from '@/components/tenant/TenantHeader';
+import { ProductSection } from '@/components/tenant/ProductSection';
 import { isStoreOpen } from '@/lib/utils';
 import {
   ShoppingBag,
-  Plus,
-  Clock,
-  MapPin,
-  Layers,
   ArrowLeft,
-  PowerOff,
   Sparkles,
-  CalendarDays,
+  PowerOff,
 } from 'lucide-react';
 
 interface Props {
@@ -25,22 +22,6 @@ interface Props {
   categories: Category[];
   products: Product[];
 }
-
-const formatTime12h = (timeStr: string) => {
-  if (!timeStr) return '';
-  const [hourStr, minuteStr] = timeStr.split(':');
-  const hour = parseInt(hourStr, 10);
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  const formattedHour = hour % 12 || 12;
-  return `${formattedHour}:${minuteStr} ${ampm}`;
-};
-
-const formatWorkingDays = (days: number[] | undefined | null) => {
-  if (!days || days.length === 7) return 'Todos los días';
-  const daysMap: Record<number, string> = { 1: 'L', 2: 'M', 3: 'M', 4: 'J', 5: 'V', 6: 'S', 0: 'D' };
-  const sorted = [...days].sort((a, b) => (a === 0 ? 7 : a) - (b === 0 ? 7 : b));
-  return sorted.map(d => daysMap[d]).join('-');
-};
 
 export default function TenantClientView({
   initialTenant,
@@ -128,9 +109,6 @@ export default function TenantClientView({
   const isOpen = tenant.is_active ?? false;
   const isExtraordinaryService = isOpen && !isWithinSchedule;
   const totalCartCount = items.reduce((acc, item) => acc + item.quantity, 0);
-  const initialLetter = tenant.name ? tenant.name.charAt(0).toUpperCase() : 'V';
-  
-  const tenantLogo = (tenant as Tenant & { logo_url?: string }).logo_url;
 
   return (
     <main className="min-h-screen bg-slate-50/60 pb-32">
@@ -148,206 +126,37 @@ export default function TenantClientView({
         </div>
       </div>
 
-      <div className="max-w-md mx-auto px-4 -mt-10 relative z-20">
-        <div className="bg-white rounded-3xl p-5 shadow-xl shadow-slate-200/50 border border-slate-100 space-y-4">
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xl shadow-xs shrink-0 border border-emerald-100 overflow-hidden">
-              {tenantLogo ? (
-                <img src={tenantLogo} alt={tenant.name} className="w-full h-full object-cover" />
-              ) : (
-                initialLetter
-              )}
-            </div>
+      <div className="max-w-md mx-auto px-4 -mt-10 relative z-20 space-y-3">
+        <TenantHeader tenant={tenant} isOpen={isOpen} />
 
-            <div className="flex-1 min-w-0 space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <h1 className="text-xl font-black text-slate-900 tracking-tight break-words">{tenant.name}</h1>
-                <span
-                  className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 flex items-center gap-1.5 shadow-2xs ${
-                    isOpen
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                      : 'bg-rose-50 text-rose-600 border border-rose-100'
-                  }`}
-                >
-                  {isOpen && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-                  {isOpen ? 'Abierto' : 'Cerrado'}
-                </span>
-              </div>
-
-              {tenant.description && (
-                <p className="text-xs text-slate-500 font-normal leading-relaxed">
-                  {tenant.description}
-                </p>
-              )}
-            </div>
+        {isExtraordinaryService && (
+          <div className="p-3 bg-indigo-50 border border-indigo-100 text-indigo-900 text-xs rounded-2xl font-medium flex items-start gap-2.5">
+            <Sparkles className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+            <span>Atendiendo en horario especial. ¡Tus pedidos serán recibidos normalmente!</span>
           </div>
+        )}
 
-          {isExtraordinaryService && (
-            <div className="p-3 bg-indigo-50 border border-indigo-100 text-indigo-900 text-xs rounded-2xl font-medium flex items-start gap-2.5">
-              <Sparkles className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-              <span>Atendiendo en horario especial. ¡Tus pedidos serán recibidos normalmente!</span>
-            </div>
-          )}
-
-          {!isOpen && (
-            <div className="p-3 bg-rose-50 border border-rose-100 text-rose-900 text-xs rounded-2xl font-medium flex items-start gap-2.5">
-              <PowerOff className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <span>
-                {!isWithinSchedule
-                  ? 'Este local se encuentra fuera de su horario de atención habitual.'
-                  : 'El restaurante ha pausado la recepción de pedidos temporalmente.'}
-              </span>
-            </div>
-          )}
-
-          {/* Metadatos corregidos: Horario en su propia línea para que no se corte, Zona y Días abajo */}
-          <div className="space-y-2 pt-3 border-t border-slate-100 text-xs text-slate-600">
-            <div className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100/80">
-              <span className="text-slate-400 font-medium flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-emerald-600 shrink-0" /> Horario
-              </span>
-              <span className="font-bold text-slate-800">
-                {formatTime12h(tenant.opening_time)} - {formatTime12h(tenant.closing_time)}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-2xl border border-slate-100/80">
-                <span className="text-slate-400 font-medium flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Zona
-                </span>
-                <span className="font-bold text-slate-800 truncate">Valle Real</span>
-              </div>
-
-              <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-2xl border border-slate-100/80">
-                <span className="text-slate-400 font-medium flex items-center gap-1.5">
-                  <CalendarDays className="w-3.5 h-3.5 text-emerald-600 shrink-0" /> Días
-                </span>
-                <span className="font-bold text-slate-800 truncate">{formatWorkingDays(tenant.working_days)}</span>
-              </div>
-            </div>
+        {!isOpen && (
+          <div className="p-3 bg-rose-50 border border-rose-100 text-rose-900 text-xs rounded-2xl font-medium flex items-start gap-2.5">
+            <PowerOff className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <span>
+              {!isWithinSchedule
+                ? 'Este local se encuentra fuera de su horario de atención habitual.'
+                : 'El restaurante ha pausado la recepción de pedidos temporalmente.'}
+            </span>
           </div>
-        </div>
+        )}
       </div>
 
-      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-100 shadow-2xs mt-6 py-2.5">
-        <div className="max-w-md mx-auto px-4 flex gap-2 overflow-x-auto no-scrollbar">
-          {categories.map((category) => {
-            const hasProducts = products.some((p) => p.category_id === category.id);
-            if (!hasProducts) return null;
-
-            const isSelected = activeCategory === category.id;
-
-            return (
-              <button
-                key={category.id}
-                onClick={() => scrollToCategory(category.id)}
-                className={`text-xs font-bold px-4 py-2 rounded-xl whitespace-nowrap transition-all cursor-pointer shadow-2xs ${
-                  isSelected
-                    ? 'bg-emerald-600 text-white shadow-emerald-600/20 shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {category.name}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="max-w-md mx-auto px-4 mt-6 space-y-8">
-        {categories.map((category) => {
-          const categoryProducts = products.filter((p) => p.category_id === category.id);
-          if (categoryProducts.length === 0) return null;
-
-          return (
-            <section
-              key={category.id}
-              ref={(el) => { categoryRefs.current[category.id] = el; }}
-              className="scroll-mt-24 space-y-3"
-            >
-              <div className="flex items-center gap-2">
-                <div className="w-1.5 h-4 bg-emerald-600 rounded-full" />
-                <h2 className="text-xs font-black uppercase tracking-wider text-slate-800">
-                  {category.name}
-                </h2>
-              </div>
-
-              <div className="space-y-3">
-                {categoryProducts.map((product) => {
-                  const hasModifiers =
-                    (Array.isArray(product.modifier_groups) && product.modifier_groups.length > 0) ||
-                    (Array.isArray(product.product_variants) && product.product_variants.length > 0);
-                  const isAvailable = isOpen && product.is_available;
-
-                  return (
-                    <div
-                      key={product.id}
-                      className={`flex justify-between items-center p-4 bg-white border rounded-2xl shadow-xs transition-all ${
-                        isAvailable
-                          ? 'border-slate-100 hover:border-emerald-200 hover:shadow-md'
-                          : 'border-slate-100 opacity-60 bg-slate-50/50'
-                      }`}
-                    >
-                      <div className="flex-1 pr-3 space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3
-                            className={`font-bold text-sm tracking-tight ${
-                              isAvailable ? 'text-slate-900' : 'text-slate-500 line-through'
-                            }`}
-                          >
-                            {product.name}
-                          </h3>
-
-                          {hasModifiers && isAvailable && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-100">
-                              <Layers className="w-3 h-3" /> Personalizable
-                            </span>
-                          )}
-
-                          {!product.is_available && (
-                            <span className="text-[10px] font-bold bg-rose-50 text-rose-600 px-2 py-0.5 rounded-full border border-rose-100">
-                              Agotado
-                            </span>
-                          )}
-                        </div>
-
-                        {product.description && (
-                          <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed font-normal">
-                            {product.description}
-                          </p>
-                        )}
-
-                        <span
-                          className={`text-sm font-black block pt-0.5 ${
-                            isAvailable ? 'text-emerald-700' : 'text-slate-400'
-                          }`}
-                        >
-                          ${product.price.toFixed(2)}
-                        </span>
-                      </div>
-
-                      {isAvailable ? (
-                        <button
-                          onClick={() => handleAddClick(product)}
-                          className="w-10 h-10 bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white rounded-2xl flex items-center justify-center transition-all active:scale-95 shrink-0 cursor-pointer shadow-2xs group"
-                          aria-label={`Agregar ${product.name}`}
-                        >
-                          <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
-                        </button>
-                      ) : (
-                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-3 py-2 rounded-xl shrink-0 select-none">
-                          {!isOpen ? 'Cerrado' : 'Agotado'}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
-      </div>
+      <ProductSection
+        categories={categories}
+        products={products}
+        activeCategory={activeCategory}
+        isOpen={isOpen}
+        categoryRefs={categoryRefs}
+        onCategoryClick={scrollToCategory}
+        onAddProduct={handleAddClick}
+      />
 
       {totalCartCount > 0 && isCartFromThisTenant && (
         <div className="fixed bottom-6 left-0 right-0 max-w-md mx-auto px-4 z-40">
