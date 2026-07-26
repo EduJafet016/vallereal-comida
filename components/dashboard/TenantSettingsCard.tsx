@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Tenant } from '@/types';
-import { Settings, Truck, Power, Loader2, CalendarDays } from 'lucide-react';
+import { Settings, Truck, Power, Loader2, CalendarDays, Upload, Image as ImageIcon } from 'lucide-react';
 
 interface Props {
   tenant: Tenant;
@@ -24,6 +24,7 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [togglingStatus, setTogglingStatus] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   // Form states
   const [editIsActive, setEditIsActive] = useState(tenant.is_active ?? true);
@@ -43,6 +44,8 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
   );
 
   const isActive = tenant.is_active ?? true;
+  const tenantLogo = (tenant as Tenant & { logo_url?: string }).logo_url;
+  const initialLetter = tenant.name ? tenant.name.charAt(0).toUpperCase() : 'V';
 
   const handleQuickStatusToggle = async () => {
     setTogglingStatus(true);
@@ -69,6 +72,49 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
         ? prev.filter(d => d !== dayId) 
         : [...prev, dayId]
     );
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      setUploadingLogo(true);
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${tenant.id}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      // 1. Subir al bucket 'tenant-logos'
+      const { error: uploadError } = await supabase.storage
+        .from('tenant-logos')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // 2. Obtener URL pública
+      const { data: publicUrlData } = supabase.storage
+        .from('tenant-logos')
+        .getPublicUrl(filePath);
+
+      const publicUrl = publicUrlData.publicUrl;
+
+      // 3. Actualizar la base de datos en la tabla tenants
+      const { error: updateError } = await supabase
+        .from('tenants')
+        .update({ logo_url: publicUrl })
+        .eq('id', tenant.id);
+
+      if (updateError) throw updateError;
+
+      // Actualizar el estado global del tenant
+      onTenantUpdated({ ...tenant, logo_url: publicUrl } as Tenant);
+    } catch (error) {
+      console.error('Error al subir el logotipo:', error);
+      alert('Hubo un error al subir la imagen. Verifica tu conexión o intenta más tarde.');
+    } finally {
+      setUploadingLogo(false);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -133,14 +179,29 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
         </span>
         <button
           onClick={() => setIsEditing(!isEditing)}
-          className="text-xs text-emerald-600 font-semibold hover:underline"
+          className="text-xs text-emerald-600 font-semibold hover:underline cursor-pointer"
         >
           {isEditing ? 'Cancelar' : 'Editar Información'}
         </button>
       </div>
 
       {!isEditing ? (
-        <div className="space-y-3">
+        <div className="space-y-4">
+          {/* HEADER DEL LOCAL CON LOGO */}
+          <div className="flex items-center gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xl shadow-xs shrink-0 border border-emerald-100 overflow-hidden">
+              {tenantLogo ? (
+                <img src={tenantLogo} alt={tenant.name} className="w-full h-full object-cover" />
+              ) : (
+                initialLetter
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-900">{tenant.name}</p>
+              <p className="text-xs text-gray-500 line-clamp-1">{tenant.description || 'Sin descripción'}</p>
+            </div>
+          </div>
+
           {/* CONTROL RÁPIDO DE APERTURA / CIERRE */}
           <div className="bg-gray-50 p-3 rounded-xl border flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -177,9 +238,7 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
             </button>
           </div>
 
-          <div className="text-xs space-y-2 text-gray-700 pt-1">
-            <p><strong className="text-gray-900">Nombre:</strong> {tenant.name}</p>
-            <p><strong className="text-gray-900">Descripción:</strong> {tenant.description || 'Sin descripción'}</p>
+          <div className="text-xs space-y-2 text-gray-700">
             <p><strong className="text-gray-900">WhatsApp:</strong> {tenant.whatsapp_number}</p>
             <p><strong className="text-gray-900">Días Laborales:</strong> {renderActiveDays()}</p>
             <p><strong className="text-gray-900">Horario:</strong> {tenant.opening_time.slice(0, 5)} - {tenant.closing_time.slice(0, 5)} hrs</p>
@@ -203,6 +262,37 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
         </div>
       ) : (
         <form onSubmit={handleSave} className="space-y-3 pt-1">
+          {/* SECCIÓN DE LOGOTIPO EN EDICIÓN */}
+          <div className="flex items-center gap-4 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xl shrink-0 border border-emerald-100 overflow-hidden shadow-xs">
+              {tenantLogo ? (
+                <img src={tenantLogo} alt={tenant.name} className="w-full h-full object-cover" />
+              ) : (
+                initialLetter
+              )}
+            </div>
+
+            <div className="flex-1 min-w-0 space-y-1.5">
+              <p className="text-xs font-bold text-gray-800">Logotipo del Local</p>
+              <label className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
+                uploadingLogo ? 'bg-gray-200 text-gray-400 pointer-events-none' : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50 shadow-xs'
+              }`}>
+                {uploadingLogo ? (
+                  <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Subiendo...</>
+                ) : (
+                  <><Upload className="w-3.5 h-3.5" /> Cambiar imagen</>
+                )}
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleLogoUpload} 
+                  disabled={uploadingLogo} 
+                  className="hidden" 
+                />
+              </label>
+            </div>
+          </div>
+
           {/* SWITCH EN MODO EDICIÓN */}
           <div className="p-2.5 bg-gray-50 border rounded-xl flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-800">Recibir Pedidos (Apertura)</span>
