@@ -14,16 +14,14 @@ import {
   Sparkles,
   Download,
   Heart,
-  Store,
 } from 'lucide-react';
 import { isStoreOpen } from '@/lib/utils';
 import { AuthModal } from '@/app/components/AuthModal';
 
-// Extendemos el tipo Tenant para que TypeScript sepa que ahora trae sus productos y categorías anidados
 type TenantWithMenu = Tenant & {
   products?: Pick<Product, 'name' | 'description'>[];
   categories?: Pick<Category, 'name'>[];
-  logo_url?: string | null; // Opcional por si deseas implementar logos en el futuro
+  logo_url?: string | null;
 };
 
 export default function RootHomePage() {
@@ -32,7 +30,6 @@ export default function RootHomePage() {
   const [loading, setLoading] = useState(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
-  // Estados para la instalación PWA
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -139,7 +136,6 @@ export default function RootHomePage() {
     };
   }, []);
 
-  // Lógica de Búsqueda Multicriterio
   const filteredTenants = tenants
     .filter((t) => {
       const query = search.toLowerCase().trim();
@@ -173,9 +169,8 @@ export default function RootHomePage() {
   return (
     <main className="min-h-screen bg-slate-50/60 flex flex-col justify-between pb-8">
       <div>
-        {/* Header Rediseñado con profundidad */}
-        <header className="bg-gradient-to-b from-emerald-800 via-emerald-700 to-teal-700 text-white pt-6 pb-12 px-4 rounded-b-[2.5rem] shadow-xl relative overflow-hidden">
-          {/* Detalles decorativos de fondo sutiles */}
+        {/* Header Superior */}
+        <header className="bg-gradient-to-b from-emerald-800 via-emerald-700 to-teal-700 text-white pt-6 pb-8 px-4 rounded-b-[2.5rem] shadow-xl relative overflow-hidden">
           <div className="absolute -right-10 -top-10 w-40 h-40 bg-emerald-600/30 rounded-full blur-2xl pointer-events-none" />
           <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-teal-600/20 rounded-full blur-2xl pointer-events-none" />
 
@@ -212,23 +207,24 @@ export default function RootHomePage() {
                 Pide directamente a tus locales favoritos sin comisiones
               </p>
             </div>
-
-            {/* Barra de búsqueda flotante refinada */}
-            <div className="relative pt-2">
-              <Search className="w-4 h-4 text-slate-400 absolute left-4 top-5.5 z-10 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Buscar negocio, categoría o platillo..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-11 pr-4 py-3.5 bg-white text-slate-900 placeholder:text-slate-400 rounded-2xl text-xs font-medium shadow-lg shadow-black/5 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all border border-slate-100"
-              />
-            </div>
           </div>
         </header>
 
-        <section className="max-w-md mx-auto px-4 mt-6 space-y-5">
-          {/* Tarjeta de información directa */}
+        {/* BARRA DE BÚSQUEDA STICKY (Se queda fija arriba al hacer scroll) */}
+        <div className="sticky top-0 z-40 bg-slate-50/90 backdrop-blur-md py-3 px-4 shadow-xs">
+          <div className="max-w-md mx-auto relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-4 top-3.5 z-10 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Buscar negocio, categoría o platillo..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 bg-white text-slate-900 placeholder:text-slate-400 rounded-2xl text-xs font-medium shadow-md shadow-black/5 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all border border-slate-200/80"
+            />
+          </div>
+        </div>
+
+        <section className="max-w-md mx-auto px-4 mt-4 space-y-5">
           <div className="bg-emerald-50/80 border border-emerald-100/80 p-4 rounded-2xl flex items-start gap-3.5 shadow-xs">
             <div className="p-2 bg-emerald-600 text-white rounded-xl shadow-xs shrink-0 mt-0.5">
               <ShieldCheck className="w-4 h-4" />
@@ -269,7 +265,6 @@ export default function RootHomePage() {
                 const isOpen = tenant.is_active ?? false;
                 const isExtraHours = isOpen && !isWithinSchedule;
 
-                // Generador de iniciales elegante para el avatar del local
                 const initial = tenant.name ? tenant.name.charAt(0).toUpperCase() : 'V';
 
                 return (
@@ -282,7 +277,6 @@ export default function RootHomePage() {
                     }`}
                   >
                     <div className="flex items-center gap-4">
-                      {/* Avatar Inteligente (Logotipo o Inicial Estilizada) */}
                       <div
                         className={`w-12 h-12 rounded-2xl shrink-0 flex items-center justify-center font-black text-base transition-all shadow-xs ${
                           isOpen
@@ -305,7 +299,6 @@ export default function RootHomePage() {
                             {tenant.name}
                           </h3>
 
-                          {/* Píldora de Estado Elegante */}
                           <span
                             className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full shrink-0 flex items-center gap-1.5 shadow-2xs ${
                               isOpen
@@ -352,7 +345,6 @@ export default function RootHomePage() {
             </div>
           )}
 
-          {/* Footer minimalista */}
           <div className="pt-8 pb-4 text-center space-y-1">
             <p className="text-xs font-semibold text-slate-400 flex items-center justify-center gap-1">
               Hecho con <Heart className="w-3 h-3 text-rose-500 fill-rose-500" /> para Valle Real by EduJafet016
