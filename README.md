@@ -11,7 +11,7 @@
 
 ## Demo en Vivo
 Puedes probar la aplicación en funcionamiento aquí:  
-🔗 **[vallereal-comida.vercel.app](https://vallereal-comida.vercel.app)**
+🔗 **[vallereal-comida.vercel.app](https://vallereal-comida.vercel.app)** (solo hacer pedidos a "restaurante de prueba")
 
 ---
 
