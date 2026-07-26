@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Tenant } from '@/types';
-import { KeyRound, ShieldCheck } from 'lucide-react';
+import { Shield, KeyRound, Loader2 } from 'lucide-react';
 
 interface Props {
   tenant: Tenant;
@@ -11,65 +11,84 @@ interface Props {
 }
 
 export function SecurityCard({ tenant, onPinUpdated }: Props) {
-  const [isChangingPin, setIsChangingPin] = useState(false);
+  const [isEditingPin, setIsEditingPin] = useState(false);
   const [newPin, setNewPin] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const handleUpdatePin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPin.length !== 4 || isNaN(Number(newPin))) return;
+    if (newPin.length < 4) {
+      alert('El PIN debe tener al menos 4 caracteres.');
+      return;
+    }
 
+    setSaving(true);
     const { error } = await supabase
       .from('tenants')
       .update({ admin_pin: newPin })
       .eq('id', tenant.id);
 
-    if (!error) {
+    if (error) {
+      alert(`Error al actualizar PIN: ${error.message}`);
+    } else {
       onPinUpdated(newPin);
-      setSuccessMsg('PIN actualizado correctamente');
       setNewPin('');
-      setIsChangingPin(false);
-      setTimeout(() => setSuccessMsg(''), 4000);
+      setIsEditingPin(false);
+      alert('PIN de seguridad actualizado con éxito.');
     }
+    setSaving(false);
   };
 
   return (
-    <div className="bg-white p-4 rounded-2xl border shadow-sm space-y-2">
-      {successMsg && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold p-2.5 rounded-xl flex items-center gap-2 mb-2">
-          <ShieldCheck className="w-4 h-4 text-emerald-600" /> {successMsg}
-        </div>
-      )}
-
-      <div className="flex justify-between items-center">
-        <span className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
-          <KeyRound className="w-4 h-4 text-emerald-600" /> Seguridad
+    <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
+      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+        <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+          <Shield className="w-3.5 h-3.5 text-[#007A55]" /> Seguridad
         </span>
         <button
-          onClick={() => setIsChangingPin(!isChangingPin)}
-          className="text-xs text-emerald-600 font-semibold hover:underline"
+          onClick={() => setIsEditingPin(!isEditingPin)}
+          className="text-xs text-[#007A55] font-bold hover:underline cursor-pointer"
         >
-          {isChangingPin ? 'Cancelar' : 'Cambiar PIN'}
+          {isEditingPin ? 'Cancelar' : 'Cambiar PIN'}
         </button>
       </div>
 
-      {isChangingPin && (
-        <form onSubmit={handleUpdatePin} className="pt-3 border-t flex gap-2">
-          <input
-            type="password"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={4}
-            placeholder="Nuevo PIN"
-            value={newPin}
-            onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-            className="flex-1 p-2 border rounded-xl text-xs font-mono text-gray-900 text-center focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          />
+      {!isEditingPin ? (
+        <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/70 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-emerald-50 text-[#007A55] border border-emerald-100">
+              <KeyRound className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-900">PIN de acceso activo</p>
+              <p className="text-[11px] text-slate-500">Protege la administración de tu local</p>
+            </div>
+          </div>
+          <span className="text-xs font-mono font-bold bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700">
+            {tenant.admin_pin || '----'}
+          </span>
+        </div>
+      ) : (
+        <form onSubmit={handleUpdatePin} className="space-y-3 pt-1">
+          <div>
+            <label className="text-xs font-semibold text-slate-700 block mb-1">Nuevo PIN de Seguridad</label>
+            <input
+              type="text"
+              required
+              maxLength={10}
+              placeholder="Ej. 1234"
+              value={newPin}
+              onChange={(e) => setNewPin(e.target.value)}
+              className="w-full p-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:ring-2 focus:ring-[#007A55] focus:outline-none"
+            />
+          </div>
           <button
             type="submit"
-            className="bg-emerald-600 text-white font-bold px-3 py-2 rounded-xl text-xs hover:bg-emerald-700"
+            disabled={saving}
+            className="w-full bg-[#007A55] hover:bg-[#006344] text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-2xs active:scale-[0.98] disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
           >
-            Guardar
+            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            <span>Guardar Nuevo PIN</span>
           </button>
         </form>
       )}

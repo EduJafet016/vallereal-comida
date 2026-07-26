@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Tenant } from '@/types';
-import { Settings, Truck, Power, Loader2, Upload } from 'lucide-react';
+import { Store, Truck, Power, Loader2, Upload, Settings } from 'lucide-react';
 import { TenantScheduleInputs } from './TenantScheduleInputs';
 import { TenantDeliveryInputs } from './TenantDeliveryInputs';
 
@@ -19,7 +19,7 @@ const WEEK_DAYS = [
   { id: 4, label: 'J' },
   { id: 5, label: 'V' },
   { id: 6, label: 'S' },
-  { id: 0, label: 'D' }, // Postgres usa 0 para Domingo
+  { id: 0, label: 'D' },
 ];
 
 export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
@@ -151,11 +151,12 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
     if (error) {
       alert(`Error al actualizar: ${error.message}`);
     } else {
-      onTenantUpdated({
+      const finalUpdatedTenant = {
         ...tenant,
         ...updatedFields,
         description: editDescription.trim() || undefined,
-      });
+      };
+      onTenantUpdated(finalUpdatedTenant);
       setIsEditing(false);
     }
     setSaving(false);
@@ -168,14 +169,14 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
   };
 
   return (
-    <div className="bg-white p-4 rounded-2xl border shadow-sm space-y-4">
-      <div className="flex justify-between items-center border-b pb-2">
-        <span className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
-          <Settings className="w-4 h-4 text-emerald-600" /> Datos y Envíos
+    <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
+      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+        <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+          <Settings className="w-3.5 h-3.5 text-[#007A55]" /> Datos y Envíos
         </span>
         <button
           onClick={() => setIsEditing(!isEditing)}
-          className="text-xs text-emerald-600 font-semibold hover:underline cursor-pointer"
+          className="text-xs text-[#007A55] font-bold hover:underline cursor-pointer"
         >
           {isEditing ? 'Cancelar' : 'Editar Información'}
         </button>
@@ -184,7 +185,7 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
       {!isEditing ? (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xl shadow-xs shrink-0 border border-emerald-100 overflow-hidden">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-[#007A55] flex items-center justify-center font-black text-xl shadow-2xs shrink-0 border border-emerald-100/80 overflow-hidden">
               {tenantLogo ? (
                 <img src={tenantLogo} alt={tenant.name} className="w-full h-full object-cover" />
               ) : (
@@ -192,27 +193,27 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
               )}
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-900">{tenant.name}</p>
-              <p className="text-xs text-gray-500 line-clamp-1">{tenant.description || 'Sin descripción'}</p>
+              <p className="text-sm font-bold text-slate-900">{tenant.name}</p>
+              <p className="text-xs text-slate-500 line-clamp-1">{tenant.description || 'Sin descripción'}</p>
             </div>
           </div>
 
-          <div className="bg-gray-50 p-3 rounded-xl border flex items-center justify-between">
+          <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/70 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div
-                className={`p-2 rounded-lg border ${
+                className={`p-2 rounded-xl border ${
                   isActive
-                    ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                    : 'bg-red-100 text-red-700 border-red-200'
+                    ? 'bg-emerald-100/70 text-[#007A55] border-emerald-200'
+                    : 'bg-red-50 text-red-600 border-red-200'
                 }`}
               >
                 <Power className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-xs font-bold text-gray-900">
-                  Estado: <span className={isActive ? 'text-emerald-600' : 'text-red-600'}>{isActive ? 'Abierto' : 'Cerrado'}</span>
+                <p className="text-xs font-bold text-slate-900">
+                  Estado: <span className={isActive ? 'text-[#007A55]' : 'text-red-600'}>{isActive ? 'Abierto' : 'Cerrado'}</span>
                 </p>
-                <p className="text-[11px] text-gray-500">
+                <p className="text-[11px] text-slate-500">
                   {isActive ? 'Recibiendo pedidos' : 'Pedidos pausados'}
                 </p>
               </div>
@@ -221,9 +222,9 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
             <button
               onClick={handleQuickStatusToggle}
               disabled={togglingStatus}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all border flex items-center gap-1.5 active:scale-95 cursor-pointer ${
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all border flex items-center gap-1.5 active:scale-95 cursor-pointer ${
                 isActive
-                  ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
+                  ? 'bg-[#007A55] text-white border-[#007A55] hover:bg-[#006344]'
                   : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
               }`}
             >
@@ -232,14 +233,14 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
             </button>
           </div>
 
-          <div className="text-xs space-y-2 text-gray-700">
-            <p><strong className="text-gray-900">WhatsApp:</strong> {tenant.whatsapp_number}</p>
-            <p><strong className="text-gray-900">Días Laborales:</strong> {renderActiveDays()}</p>
-            <p><strong className="text-gray-900">Horario:</strong> {tenant.opening_time.slice(0, 5)} - {tenant.closing_time.slice(0, 5)} hrs</p>
+          <div className="text-xs space-y-2 text-slate-600 bg-slate-50/40 p-3.5 rounded-xl border border-slate-200/60">
+            <p><strong className="text-slate-800">WhatsApp:</strong> {tenant.whatsapp_number}</p>
+            <p><strong className="text-slate-800">Días Laborales:</strong> {renderActiveDays()}</p>
+            <p><strong className="text-slate-800">Horario:</strong> {tenant.opening_time?.slice(0, 5)} - {tenant.closing_time?.slice(0, 5)} hrs</p>
 
-            <div className="pt-2 border-t mt-2 space-y-1 bg-gray-50 p-2.5 rounded-xl border">
-              <span className="font-bold text-gray-900 flex items-center gap-1">
-                <Truck className="w-3.5 h-3.5 text-emerald-600" /> Logística de Envío
+            <div className="pt-2 border-t border-slate-200/60 mt-2 space-y-1">
+              <span className="font-bold text-slate-800 flex items-center gap-1">
+                <Truck className="w-3.5 h-3.5 text-[#007A55]" /> Logística de Envío
               </span>
               <p>• Parte Baja: <strong>${tenant.delivery_fee_low_zone ?? 10}.00</strong></p>
               <p>• Parte Alta: <strong>${tenant.delivery_fee_high_zone ?? 20}.00</strong></p>
@@ -256,8 +257,8 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
         </div>
       ) : (
         <form onSubmit={handleSave} className="space-y-3 pt-1">
-          <div className="flex items-center gap-4 p-3 bg-gray-50 border border-gray-200 rounded-xl">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xl shrink-0 border border-emerald-100 overflow-hidden shadow-xs">
+          <div className="flex items-center gap-4 p-3 bg-slate-50/70 border border-slate-200/70 rounded-xl">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-[#007A55] flex items-center justify-center font-black text-xl shrink-0 border border-emerald-100 overflow-hidden shadow-2xs">
               {tenantLogo ? (
                 <img src={tenantLogo} alt={tenant.name} className="w-full h-full object-cover" />
               ) : (
@@ -266,9 +267,9 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
             </div>
 
             <div className="flex-1 min-w-0 space-y-1.5">
-              <p className="text-xs font-bold text-gray-800">Logotipo del Local</p>
+              <p className="text-xs font-bold text-slate-800">Logotipo del Local</p>
               <label className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
-                uploadingLogo ? 'bg-gray-200 text-gray-400 pointer-events-none' : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50 shadow-xs'
+                uploadingLogo ? 'bg-slate-200 text-slate-400 pointer-events-none' : 'bg-white text-[#007A55] border border-emerald-200 hover:bg-emerald-50 shadow-2xs'
               }`}>
                 {uploadingLogo ? (
                   <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Subiendo...</>
@@ -286,8 +287,8 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
             </div>
           </div>
 
-          <div className="p-2.5 bg-gray-50 border rounded-xl flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-800">Recibir Pedidos (Apertura)</span>
+          <div className="p-3 bg-slate-50/70 border border-slate-200/70 rounded-xl flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-800">Recibir Pedidos (Apertura)</span>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
@@ -295,39 +296,39 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
                 onChange={(e) => setEditIsActive(e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+              <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#007A55]"></div>
             </label>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1">Nombre</label>
+            <label className="text-xs font-semibold text-slate-700 block mb-1">Nombre</label>
             <input
               type="text"
               required
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
-              className="w-full p-2 border rounded-xl text-xs text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              className="w-full p-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:ring-2 focus:ring-[#007A55] focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1">Descripción Corta</label>
+            <label className="text-xs font-semibold text-slate-700 block mb-1">Descripción Corta</label>
             <input
               type="text"
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
-              className="w-full p-2 border rounded-xl text-xs text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              className="w-full p-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:ring-2 focus:ring-[#007A55] focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1">WhatsApp de Pedidos</label>
+            <label className="text-xs font-semibold text-slate-700 block mb-1">WhatsApp de Pedidos</label>
             <input
               type="tel"
               required
               value={editWhatsapp}
               onChange={(e) => setEditWhatsapp(e.target.value.replace(/\D/g, ''))}
-              className="w-full p-2 border rounded-xl text-xs text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              className="w-full p-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:ring-2 focus:ring-[#007A55] focus:outline-none"
             />
           </div>
 
@@ -355,7 +356,7 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
           <button
             type="submit"
             disabled={saving}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-md active:scale-[0.98] disabled:opacity-50 mt-2 cursor-pointer"
+            className="w-full bg-[#007A55] hover:bg-[#006344] text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-2xs active:scale-[0.98] disabled:opacity-50 mt-2 cursor-pointer"
           >
             {saving ? 'Guardando...' : 'Guardar Cambios'}
           </button>

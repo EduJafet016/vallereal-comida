@@ -100,10 +100,10 @@ export function GlobalIngredientsCard({ tenantId }: Props) {
   };
 
   return (
-    <div className="bg-white p-4 rounded-2xl border shadow-sm space-y-4 mb-6">
-      <div className="flex justify-between items-center border-b pb-2">
-        <span className="text-xs font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
-          <Package className="w-4 h-4 text-emerald-600" /> Inventario Global (Extras)
+    <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
+      <div className="border-b border-slate-100 pb-3">
+        <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+          <Package className="w-3.5 h-3.5 text-[#007A55]" /> Inventario Global (Extras)
         </span>
       </div>
 
@@ -113,27 +113,28 @@ export function GlobalIngredientsCard({ tenantId }: Props) {
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           placeholder="Ej. Milanesa, Queso extra..."
-          className="flex-1 p-2 border rounded-xl text-xs text-gray-900 font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+          className="flex-1 p-2.5 bg-slate-50/50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:ring-2 focus:ring-[#007A55] focus:outline-none"
           disabled={isSubmitting}
         />
         <button
           type="submit"
           disabled={isSubmitting || !newName.trim()}
-          className="bg-emerald-600 text-white p-2 rounded-xl hover:bg-emerald-700 disabled:opacity-50 transition-all cursor-pointer"
+          className="bg-[#007A55] text-white p-2.5 rounded-xl hover:bg-[#006344] disabled:opacity-50 transition-all cursor-pointer shadow-2xs shrink-0 flex items-center justify-center"
+          title="Agregar ingrediente"
         >
           {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
         </button>
       </form>
 
-      <div className="space-y-2 pt-2 max-h-60 overflow-y-auto pr-1">
+      <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
         {loading ? (
-          <div className="flex justify-center p-4"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
+          <div className="flex justify-center p-4"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
         ) : ingredients.length === 0 ? (
-          <p className="text-xs text-center text-gray-500 py-4">No hay ingredientes registrados.</p>
+          <p className="text-xs text-center text-slate-400 py-4">No hay ingredientes registrados.</p>
         ) : (
           ingredients.map(ing => (
-            <div key={ing.id} className="flex items-center justify-between p-2.5 bg-gray-50 border rounded-xl">
-              <span className={`text-xs font-bold ${ing.is_available ? 'text-gray-900' : 'text-gray-400 line-through'}`}>
+            <div key={ing.id} className="flex items-center justify-between p-2.5 bg-slate-50/70 border border-slate-200/70 rounded-xl">
+              <span className={`text-xs font-bold ${ing.is_available ? 'text-slate-800' : 'text-slate-400 line-through'}`}>
                 {ing.name}
               </span>
               
@@ -145,15 +146,15 @@ export function GlobalIngredientsCard({ tenantId }: Props) {
                     onChange={() => handleToggle(ing.id, ing.is_available)}
                     className="sr-only peer"
                   />
-                  <div className="w-8 h-4 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-600"></div>
+                  <div className="w-8 h-4 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#007A55]"></div>
                 </label>
                 
                 <button
                   onClick={() => handleDelete(ing.id)}
-                  className="text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
+                  className="text-slate-400 hover:text-red-600 transition-colors cursor-pointer p-1"
                   title="Eliminar"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>

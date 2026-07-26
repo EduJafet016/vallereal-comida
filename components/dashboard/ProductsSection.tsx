@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Tenant, Product, Category } from '@/types';
-import { Plus, RefreshCw, Utensils, Pencil, Trash2, Eye, EyeOff, Layers } from 'lucide-react';
+import { Plus, RefreshCw, Utensils, Pencil, Trash2, Eye, EyeOff, Layers, Loader2 } from 'lucide-react';
 import { ConfirmModal } from './products/ConfirmModal';
 import { AddProductModal, NewProductData } from './products/AddProductModal';
 import { EditProductModal } from './products/EditProductModal';
@@ -103,78 +103,118 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
   };
 
   return (
-    <section className="space-y-3">
-      <div className="flex justify-between items-center px-1">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-gray-400">Platillos</h2>
+    <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
+      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+        <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+          <Utensils className="w-3.5 h-3.5 text-[#007A55]" /> Platillos
+        </span>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="text-xs bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 shadow-sm hover:bg-emerald-700 active:scale-95 transition-all cursor-pointer"
+            className="px-3 py-1.5 bg-[#007A55] hover:bg-[#006344] text-white text-xs font-bold rounded-xl transition-all shadow-2xs flex items-center gap-1 cursor-pointer active:scale-95"
           >
             <Plus className="w-3.5 h-3.5" /> Agregar
           </button>
-          <button onClick={onReload} className="text-xs text-emerald-600 font-semibold flex items-center gap-1 cursor-pointer">
-            <RefreshCw className="w-3 h-3" /> Actualizar
+          <button
+            onClick={onReload}
+            disabled={loading}
+            className="p-1.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-xl transition-all shadow-2xs cursor-pointer"
+            title="Actualizar lista"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-6 text-xs text-gray-400">Cargando...</div>
+        <div className="text-center py-6 text-xs text-slate-400">Cargando platillos...</div>
       ) : products.length === 0 ? (
-        <div className="text-center py-10 bg-white rounded-2xl border border-dashed text-gray-400 space-y-2">
-          <Utensils className="w-8 h-8 mx-auto text-gray-300" />
-          <p className="text-xs font-medium text-gray-500">Aún no has agregado platillos.</p>
-          <button onClick={() => setIsAddModalOpen(true)} className="inline-flex items-center gap-1 text-xs text-emerald-600 font-bold hover:underline cursor-pointer">
+        <div className="text-center py-10 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 text-slate-400 space-y-2">
+          <Utensils className="w-8 h-8 mx-auto text-slate-300" />
+          <p className="text-xs font-medium text-slate-600">Aún no has agregado platillos.</p>
+          <button onClick={() => setIsAddModalOpen(true)} className="inline-flex items-center gap-1 text-xs text-[#007A55] font-bold hover:underline cursor-pointer">
             <Plus className="w-3.5 h-3.5" /> Agregar mi primer platillo
           </button>
         </div>
       ) : (
-        products.map((product) => {
-          const groupsCount = product.modifier_groups?.length || 0;
+        <div className="space-y-3">
+          {products.map((product) => {
+            const groupsCount = product.modifier_groups?.length || 0;
 
-          return (
-            <div key={product.id} className="p-4 bg-white border rounded-2xl shadow-sm flex justify-between items-center gap-2">
-              <div className="pr-2 flex-1">
-                <h3 className="font-semibold text-gray-900 text-sm">{product.name}</h3>
-                {product.description && <p className="text-xs text-gray-400 line-clamp-1">{product.description}</p>}
-                
-                <div className="flex items-center gap-1.5 mt-1.5">
-                  <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full ${product.is_available ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                    {product.is_available ? 'Disponible' : 'Agotado'}
-                  </span>
-                  {groupsCount > 0 && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
-                      <Layers className="w-3 h-3" /> {groupsCount} {groupsCount === 1 ? 'Grupo' : 'Grupos'}
+            return (
+              <div key={product.id} className="p-3 bg-slate-50/70 border border-slate-200/70 rounded-xl flex justify-between items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-bold text-slate-900 text-xs truncate">{product.name}</h3>
+                  {product.description && <p className="text-[11px] text-slate-500 truncate">{product.description}</p>}
+                  
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      product.is_available 
+                        ? 'bg-emerald-100/70 text-[#007A55] border border-emerald-200' 
+                        : 'bg-red-50 text-red-600 border border-red-200'
+                    }`}>
+                      {product.is_available ? 'Disponible' : 'Agotado'}
                     </span>
-                  )}
+                    {groupsCount > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                        <Layers className="w-3 h-3" /> {groupsCount} {groupsCount === 1 ? 'Grupo' : 'Grupos'}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button onClick={() => setEditingProduct(product)} className="p-2 bg-gray-50 hover:bg-gray-100 border text-gray-600 rounded-xl transition-all cursor-pointer">
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-                <button onClick={() => handleDeleteProduct(product)} className="p-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded-xl transition-all cursor-pointer">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-                <div className="flex items-center gap-1 bg-gray-50 border px-2 py-1 rounded-xl">
-                  <span className="text-xs font-bold text-gray-400">$</span>
-                  <input
-                    type="number"
-                    step="0.5"
-                    defaultValue={product.price}
-                    onBlur={(e) => updatePrice(product.id, parseFloat(e.target.value))}
-                    className="w-12 text-sm font-bold text-gray-900 bg-transparent text-center focus:outline-none"
-                  />
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+                    <button 
+                      onClick={() => setEditingProduct(product)} 
+                      className="p-1.5 text-slate-500 hover:text-[#007A55] rounded-lg transition-colors cursor-pointer"
+                      title="Editar"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteProduct(product)} 
+                      className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                      title="Eliminar"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-0.5 bg-white border border-slate-200 px-2 py-1 rounded-xl shadow-2xs">
+                    <span className="text-xs font-bold text-slate-400">$</span>
+                    <input
+                      type="number"
+                      step="0.5"
+                      defaultValue={product.price}
+                      onBlur={(e) => updatePrice(product.id, parseFloat(e.target.value))}
+                      className="w-12 text-xs font-bold text-slate-900 bg-transparent text-center focus:outline-none"
+                    />
+                  </div>
+
+                  <button 
+                    disabled={updatingId === product.id} 
+                    onClick={() => toggleAvailability(product)} 
+                    className={`p-2 rounded-xl border flex items-center transition-all cursor-pointer shadow-2xs ${
+                      product.is_available 
+                        ? 'bg-emerald-50 text-[#007A55] border-emerald-200 hover:bg-emerald-100' 
+                        : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                    }`}
+                    title={product.is_available ? 'Marcar agotado' : 'Marcar disponible'}
+                  >
+                    {updatingId === product.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : product.is_available ? (
+                      <Eye className="w-3.5 h-3.5" />
+                    ) : (
+                      <EyeOff className="w-3.5 h-3.5" />
+                    )}
+                  </button>
                 </div>
-                <button disabled={updatingId === product.id} onClick={() => toggleAvailability(product)} className={`p-2 rounded-xl border flex items-center transition-all cursor-pointer ${product.is_available ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                  {updatingId === product.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : product.is_available ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                </button>
               </div>
-            </div>
-          );
-        })
+            );
+          })}
+        </div>
       )}
 
       <AddProductModal
@@ -199,6 +239,6 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
         onConfirm={confirmModal.onConfirm}
         onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
       />
-    </section>
+    </div>
   );
 }
