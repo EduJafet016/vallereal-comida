@@ -11,7 +11,7 @@
 
 ## Demo en Vivo
 Puedes probar la aplicación en funcionamiento aquí:  
-🔗 **[vallereal-comida.vercel.app](https://vallereal-comida.vercel.app)** *(o el link de tu despliegue)*
+🔗 **[vallereal-comida.vercel.app](https://vallereal-comida.vercel.app)**
 
 ---
 
@@ -34,16 +34,3 @@ Este proyecto fue desarrollado utilizando un stack moderno enfocado en rendimien
 * **Flujo de Pedidos Directo:** Sistema de carrito optimizado para armar órdenes y enrutarlas de manera eficiente.
 * **Experiencia Nativa (PWA):** Soporte completo para instalación en pantalla de inicio con iconos personalizados e interfaz adaptada a pantallas táctiles.
 * **Optimización de Activos:** Cero dependencias pesadas innecesarias, logrando tiempos de carga mínimos y alta puntuación en rendimiento web.
-
----
-
-## 📂 Estructura del Proyecto
-
-```text
-├── app/                  # Rutas, páginas y layouts (App Router de Next.js)
-│   ├── globals.css       # Estilos globales y configuración de Tailwind
-│   ├── layout.tsx        # Layout principal, metadatos PWA y proveedores
-│   └── page.php / tsx    # Vistas principales de la plataforma
-├── context/              # Proveedores de estado global (CartContext)
-├── public/               # Archivos estáticos, manifest.json e iconos PWA
-└── package.json          # Dependencias y scripts del proyecto
