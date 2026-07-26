@@ -33,48 +33,69 @@ export function generateWhatsAppLink(
 
   const total = subtotal + deliveryFee;
 
-  let message = `*NUEVO PEDIDO - VALLE REAL*\n`;
-  message += `*Local:* ${tenant.name}\n`;
-  message += `-----------------------------------\n\n`;
+  // 1. Cabecera (Alto Contraste)
+  let message = `🛎️ *NUEVO PEDIDO - VALLE REAL* 🛎️\n`;
+  message += `🏪 *Local:* ${tenant.name}\n`;
+  message += `〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️\n\n`;
 
-  message += `*Cliente:* ${customer.name}\n`;
-  
+  // 2. Datos de Logística y Cliente
+  message += `👤 *Cliente:* ${customer.name}\n`;
   if (isDelivery) {
     const zoneName = selectedZone === 'low' ? 'Parte Baja' : 'Parte Alta';
-    message += `*Entrega:* Domicilio (${zoneName})\n`;
-    message += `*Dirección:* ${customer.address}\n\n`;
+    message += `🛵 *Tipo:* A Domicilio (${zoneName})\n`;
+    message += `📍 *Dirección:* ${customer.address}\n`;
   } else {
-    message += `*Entrega:* Pasa a recoger al local\n\n`;
+    message += `🚶 *Tipo:* Pasa a recoger al local\n`;
   }
 
-  message += `*DETALLE DEL PEDIDO:*\n`;
+  // Agrupamos las indicaciones del cliente con sus datos
+  if (customer.notes && customer.notes.trim()) {
+    message += `💬 *Indicaciones:* _${customer.notes.trim()}_\n`;
+  }
+  
+  message += `\n📋 *DETALLE DEL PEDIDO:*\n\n`;
 
+  // 3. Iteración y Desglose de Productos
   items.forEach((item) => {
-    const variantText = item.selectedVariant ? ` (${item.selectedVariant.name})` : '';
-    const itemPrice = item.selectedVariant?.price_override ?? item.product.price;
-    const itemTotal = itemPrice * item.quantity;
+    // Cálculo seguro: usa finalUnitPrice si el frontend ya lo procesó, o lo calcula sumando los deltas
+    const basePrice = item.selectedVariant?.price_override ?? item.product.price;
+    const modifiersDelta = item.selectedModifiers?.reduce((sum, mod) => sum + mod.priceDelta, 0) ?? 0;
+    const unitPrice = item.finalUnitPrice ?? (basePrice + modifiersDelta);
+    const itemTotal = unitPrice * item.quantity;
 
-    message += `• ${item.quantity}x ${item.product.name}${variantText} - *$${itemTotal.toFixed(2)}*\n`;
-    if (item.notes) {
-      message += `  _Nota producto: ${item.notes}_\n`;
+    // Línea principal del producto
+    message += `🔸 *${item.quantity}x ${item.product.name}* - *$${itemTotal.toFixed(2)}*\n`;
+    
+    // Sub-nodos (Variantes, Modificadores, Notas)
+    if (item.selectedVariant) {
+      message += `   ↳ 🔹 *Opción:* ${item.selectedVariant.name}\n`;
     }
+
+    if (item.selectedModifiers && item.selectedModifiers.length > 0) {
+      const modsText = item.selectedModifiers
+        .map(m => `${m.modifierName} (+$${m.priceDelta})`)
+        .join(', ');
+      message += `   ↳ ➕ *Extras:* ${modsText}\n`;
+    }
+
+    if (item.notes) {
+      message += `   ↳ 📝 *Nota:* _${item.notes}_\n`;
+    }
+    message += `\n`; // Separador visual entre productos
   });
 
-  message += `\n-----------------------------------\n`;
+  message += `〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️\n`;
 
-  message += `*Subtotal:* $${subtotal.toFixed(2)}\n`;
+  // 4. Resumen Financiero
+  message += `💵 *Subtotal:* $${subtotal.toFixed(2)}\n`;
   if (isDelivery) {
-    message += `*Envío (${selectedZone === 'low' ? 'Parte Baja' : 'Parte Alta'}):* ${
-      deliveryFee === 0 ? '¡GRATIS!' : `$${deliveryFee.toFixed(2)}`
-    }\n`;
+    const zoneName = selectedZone === 'low' ? 'Parte Baja' : 'Parte Alta';
+    const feeText = deliveryFee === 0 ? '¡GRATIS!' : `$${deliveryFee.toFixed(2)}`;
+    message += `🛵 *Envío (${zoneName}):* ${feeText}\n`;
   }
-  message += `*TOTAL A PAGAR:* *$${total.toFixed(2)}*\n`;
+  message += `💰 *TOTAL A PAGAR: $${total.toFixed(2)}*\n`;
 
-  if (customer.notes && customer.notes.trim()) {
-    message += `\n*Notas del cliente:* ${customer.notes.trim()}\n`;
-  }
-
-  // Limpiar número de WhatsApp eliminando cualquier caracter no numérico
+  // Sanitización de cadena (Regex para números limpios)
   const cleanPhone = tenant.whatsapp_number.replace(/\D/g, '');
 
   return `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
