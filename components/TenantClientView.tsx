@@ -18,7 +18,6 @@ import {
   PowerOff,
   Sparkles,
   CalendarDays,
-  Store,
 } from 'lucide-react';
 
 interface Props {
@@ -27,7 +26,6 @@ interface Props {
   products: Product[];
 }
 
-// === FUNCIONES AUXILIARES PURAS ===
 const formatTime12h = (timeStr: string) => {
   if (!timeStr) return '';
   const [hourStr, minuteStr] = timeStr.split(':');
@@ -54,13 +52,14 @@ export default function TenantClientView({
   const [selectedProductForVariant, setSelectedProductForVariant] = useState<Product | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(categories[0]?.id || null);
 
-  // Estados para el Modal personalizado de colisión de carritos
   const [showTenantMismatchModal, setShowTenantMismatchModal] = useState(false);
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
 
   const { items, subtotal } = useCartState();
   const dispatch = useCartDispatch();
-  const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  
+  // CORRECCIÓN DE TIPADO: Cambiado a HTMLElement para evitar el conflicto con HTMLDivElement
+  const categoryRefs = useRef<Record<string, HTMLElement | null>>({});
 
   const cartTenantId = items.length > 0 ? items[0].product.tenant_id : null;
   const isCartFromThisTenant = items.length === 0 || !cartTenantId || cartTenantId === tenant.id;
@@ -114,7 +113,7 @@ export default function TenantClientView({
     setActiveCategory(categoryId);
     const element = categoryRefs.current[categoryId];
     if (element) {
-      const offset = 90; // Espacio para compensar la barra sticky superior
+      const offset = 90;
       const bodyRect = document.body.getBoundingClientRect().top;
       const elementRect = element.getBoundingClientRect().top;
       const elementPosition = elementRect - bodyRect;
@@ -132,10 +131,11 @@ export default function TenantClientView({
   const isExtraordinaryService = isOpen && !isWithinSchedule;
   const totalCartCount = items.reduce((acc, item) => acc + item.quantity, 0);
   const initialLetter = tenant.name ? tenant.name.charAt(0).toUpperCase() : 'V';
+  
+  const tenantLogo = (tenant as Tenant & { logo_url?: string }).logo_url;
 
   return (
     <main className="min-h-screen bg-slate-50/60 pb-32">
-      {/* Header Superior y Barra de Retorno */}
       <div className="bg-gradient-to-b from-emerald-800 via-emerald-700 to-teal-700 text-white pt-6 pb-16 px-4 relative overflow-hidden">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-emerald-600/30 rounded-full blur-2xl pointer-events-none" />
         
@@ -150,13 +150,12 @@ export default function TenantClientView({
         </div>
       </div>
 
-      {/* Tarjeta de Información Principal del Local (Flotante) */}
       <div className="max-w-md mx-auto px-4 -mt-10 relative z-20">
         <div className="bg-white rounded-3xl p-5 shadow-xl shadow-slate-200/50 border border-slate-100 space-y-4">
           <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xl shadow-xs shrink-0 border border-emerald-100">
-              {tenant.logo_url ? (
-                <img src={tenant.logo_url} alt={tenant.name} className="w-full h-full object-cover rounded-2xl" />
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-black text-xl shadow-xs shrink-0 border border-emerald-100 overflow-hidden">
+              {tenantLogo ? (
+                <img src={tenantLogo} alt={tenant.name} className="w-full h-full object-cover" />
               ) : (
                 initialLetter
               )}
@@ -185,7 +184,6 @@ export default function TenantClientView({
             </div>
           </div>
 
-          {/* Alertas de Estado Especiales */}
           {isExtraordinaryService && (
             <div className="p-3 bg-indigo-50 border border-indigo-100 text-indigo-900 text-xs rounded-2xl font-medium flex items-start gap-2.5">
               <Sparkles className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
@@ -204,7 +202,6 @@ export default function TenantClientView({
             </div>
           )}
 
-          {/* Metadatos del Negocio */}
           <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100 text-[11px] text-slate-600">
             <div className="flex flex-col gap-0.5 bg-slate-50 p-2.5 rounded-2xl border border-slate-100/80">
               <span className="text-slate-400 font-medium flex items-center gap-1">
@@ -232,7 +229,6 @@ export default function TenantClientView({
         </div>
       </div>
 
-      {/* Barra de Navegación Sticky por Categorías (Chips Rápidos) */}
       <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-100 shadow-2xs mt-6 py-2.5">
         <div className="max-w-md mx-auto px-4 flex gap-2 overflow-x-auto no-scrollbar">
           {categories.map((category) => {
@@ -258,7 +254,6 @@ export default function TenantClientView({
         </div>
       </div>
 
-      {/* Listado de Categorías y Platillos */}
       <div className="max-w-md mx-auto px-4 mt-6 space-y-8">
         {categories.map((category) => {
           const categoryProducts = products.filter((p) => p.category_id === category.id);
@@ -353,7 +348,6 @@ export default function TenantClientView({
         })}
       </div>
 
-      {/* Botón flotante del Carrito */}
       {totalCartCount > 0 && isCartFromThisTenant && (
         <div className="fixed bottom-6 left-0 right-0 max-w-md mx-auto px-4 z-40">
           <button
@@ -380,7 +374,6 @@ export default function TenantClientView({
         </div>
       )}
 
-      {/* Modal de Advertencia por cambio de local */}
       {showTenantMismatchModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 text-center space-y-4">
