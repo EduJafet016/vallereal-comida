@@ -6,14 +6,14 @@ export interface Tenant {
   opening_time: string;
   closing_time: string;
   working_days?: number[];
-  delivery_fee: number; // Se mantiene por retrocompatibilidad
+  delivery_fee: number; 
   delivery_fee_low_zone: number;
   delivery_fee_high_zone: number;
   enable_free_delivery: boolean;
   free_delivery_min_amount: number;
   description?: string;
   is_active?: boolean;
-  force_open?: boolean; // Regla para apertura extraordinaria fuera de horario
+  force_open?: boolean; 
   admin_pin?: string;
   admin_token?: string;
   created_at?: string;
@@ -42,6 +42,15 @@ export interface ProductVariant {
   price_override?: number;
 }
 
+// === NUEVO: Inventario Global ===
+export interface TenantIngredient {
+  id: string;
+  tenant_id: string;
+  name: string;
+  is_available: boolean;
+  created_at?: string;
+}
+
 // Nuevas interfaces para el sistema profesional de modificadores y extras
 export interface Modifier {
   id: string;
@@ -49,6 +58,7 @@ export interface Modifier {
   name: string;
   price_delta: number;
   is_available: boolean;
+  global_ingredient_id?: string; // Enlace al catálogo global
 }
 
 export interface ModifierGroup {
@@ -71,7 +81,7 @@ export interface Product {
   price: number;
   is_available: boolean;
   product_variants?: ProductVariant[];
-  modifier_groups?: ModifierGroup[]; // Añadido para soportar los grupos de modificadores
+  modifier_groups?: ModifierGroup[]; 
 }
 
 export interface CartItem {
@@ -82,7 +92,7 @@ export interface CartItem {
     modifierName: string;
     priceDelta: number;
   }[];
-  finalUnitPrice?: number; // Precio base calculado + modificadores
+  finalUnitPrice?: number; 
   notes?: string;
   quantity: number;
 }

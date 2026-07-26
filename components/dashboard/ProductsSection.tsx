@@ -2,8 +2,8 @@
 
 import { useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Tenant, Product, Category, ModifierGroup, Modifier } from '@/types';
-import { Plus, RefreshCw, Utensils, Pencil, Trash2, Eye, EyeOff, X, Layers, Check } from 'lucide-react';
+import { Tenant, Product, Category, ModifierGroup, Modifier, TenantIngredient } from '@/types';
+import { Plus, RefreshCw, Utensils, Pencil, Trash2, Eye, EyeOff, X, Layers, Check, Search } from 'lucide-react';
 
 interface Props {
   tenant: Tenant;
@@ -32,22 +32,23 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
   const [editProdDesc, setEditProdDesc] = useState('');
   const [savingProduct, setSavingProduct] = useState(false);
 
-  // Estado local para los grupos de modificadores del producto en edición
+  // Estado local para los grupos de modificadores e Inventario Global
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
+  const [globalIngredients, setGlobalIngredients] = useState<TenantIngredient[]>([]);
   const [loadingModifiers, setLoadingModifiers] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
   // Estados temporales para crear nuevos grupos / opciones
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupRequired, setNewGroupRequired] = useState(true);
   const [newGroupType, setNewGroupType] = useState<'single' | 'multiple'>('single');
   
-  // Control de inputs por grupo para añadir modificadores: { [groupId]: { name: string, priceDelta: string } }
+  // Control de edición en línea
   const [modifierInputs, setModifierInputs] = useState<Record<string, { name: string; priceDelta: string }>>({});
-
-  // Estado para editar un modificador existente de forma en línea: { [modifierId]: { name: string, priceDelta: string } }
   const [editingModifierState, setEditingModifierState] = useState<Record<string, { name: string; priceDelta: string }>>({});
+  const [editingGroupState, setEditingGroupState] = useState<Record<string, string>>({});
 
-  // Estado para el Modal de Confirmación Personalizado (Sustituye a window.confirm)
+  // Estado para el Modal de Confirmación Personalizado
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -60,21 +61,31 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
     onConfirm: () => {},
   });
 
-  // Cargar modificadores desde Supabase cuando se abre el modal de edición
-  const fetchProductModifiers = useCallback(async (productId: string) => {
+  const fetchProductData = useCallback(async (productId: string) => {
     setLoadingModifiers(true);
     setModifierGroups([]);
-    const { data: groups, error } = await supabase
-      .from('modifier_groups')
-      .select('*, modifiers(*)')
-      .eq('product_id', productId)
-      .order('created_at', { ascending: true });
+    
+    const [groupsRes, ingredientsRes] = await Promise.all([
+      supabase
+        .from('modifier_groups')
+        .select('*, modifiers(*)')
+        .eq('product_id', productId)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('tenant_ingredients')
+        .select('*')
+        .eq('tenant_id', tenant.id)
+    ]);
 
-    if (!error && groups) {
-      setModifierGroups(groups);
+    if (!groupsRes.error && groupsRes.data) {
+      setModifierGroups(groupsRes.data);
     }
+    if (!ingredientsRes.error && ingredientsRes.data) {
+      setGlobalIngredients(ingredientsRes.data);
+    }
+    
     setLoadingModifiers(false);
-  }, []);
+  }, [tenant.id]);
 
   const toggleAvailability = async (product: Product) => {
     setUpdatingId(product.id);
@@ -182,7 +193,6 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
     setSavingProduct(false);
   };
 
-  // --- GESTIÓN DE MODIFICADORES ---
   const handleAddGroup = async () => {
     if (!editingProduct || !newGroupName.trim()) return;
 
@@ -211,6 +221,29 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
     }
   };
 
+  const handleUpdateGroupName = async (groupId: string) => {
+    const newName = editingGroupState[groupId];
+    if (!newName || !newName.trim()) return;
+
+    const trimmedName = newName.trim();
+
+    const { error } = await supabase
+      .from('modifier_groups')
+      .update({ name: trimmedName })
+      .eq('id', groupId);
+
+    if (!error) {
+      setModifierGroups(
+        modifierGroups.map((group) =>
+          group.id === groupId ? { ...group, name: trimmedName } : group
+        )
+      );
+      const copy = { ...editingGroupState };
+      delete copy[groupId];
+      setEditingGroupState(copy);
+    }
+  };
+
   const executeDeleteGroup = async (groupId: string) => {
     const { error } = await supabase.from('modifier_groups').delete().eq('id', groupId);
     if (!error) {
@@ -228,32 +261,58 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
     });
   };
 
+  const resolveGlobalIngredient = async (name: string): Promise<string | null> => {
+    const trimmed = name.trim();
+    const existing = globalIngredients.find(g => g.name.toLowerCase() === trimmed.toLowerCase());
+    if (existing) return existing.id;
+
+    const { data, error } = await supabase
+      .from('tenant_ingredients')
+      .insert([{ tenant_id: tenant.id, name: trimmed, is_available: true }])
+      .select().single();
+    
+    if (data && !error) {
+      setGlobalIngredients(prev => [...prev, data]);
+      return data.id;
+    }
+    return null;
+  };
+
   const handleAddModifier = async (groupId: string) => {
     const input = modifierInputs[groupId];
     if (!input || !input.name.trim()) return;
 
+    const trimmedName = input.name.trim();
     const priceDelta = parseFloat(input.priceDelta) || 0;
+
+    const globalIngId = await resolveGlobalIngredient(trimmedName);
 
     const { data, error } = await supabase
       .from('modifiers')
       .insert([
         {
           group_id: groupId,
-          name: input.name.trim(),
+          name: trimmedName,
           price_delta: priceDelta,
           is_available: true,
+          global_ingredient_id: globalIngId
         },
       ])
       .select()
       .single();
 
     if (!error && data) {
+      const newModifierSafelyTyped: Modifier = {
+        ...data,
+        global_ingredient_id: data.global_ingredient_id ?? undefined
+      };
+
       setModifierGroups(
         modifierGroups.map((group) => {
           if (group.id === groupId) {
             return {
               ...group,
-              modifiers: [...(group.modifiers || []), data],
+              modifiers: [...(group.modifiers || []), newModifierSafelyTyped],
             };
           }
           return group;
@@ -263,6 +322,7 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
         ...modifierInputs,
         [groupId]: { name: '', priceDelta: '' },
       });
+      setActiveDropdown(null);
     }
   };
 
@@ -270,11 +330,14 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
     const state = editingModifierState[modifierId];
     if (!state || !state.name.trim()) return;
 
+    const trimmedName = state.name.trim();
     const priceDelta = parseFloat(state.priceDelta) || 0;
+
+    const globalIngId = await resolveGlobalIngredient(trimmedName);
 
     const { error } = await supabase
       .from('modifiers')
-      .update({ name: state.name.trim(), price_delta: priceDelta })
+      .update({ name: trimmedName, price_delta: priceDelta, global_ingredient_id: globalIngId })
       .eq('id', modifierId);
 
     if (!error) {
@@ -283,7 +346,12 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
           if (group.id === groupId) {
             return {
               ...group,
-              modifiers: group.modifiers?.map((m) => (m.id === modifierId ? { ...m, name: state.name.trim(), price_delta: priceDelta } : m)),
+              modifiers: group.modifiers?.map((m) => (m.id === modifierId ? { 
+                ...m, 
+                name: trimmedName, 
+                price_delta: priceDelta, 
+                global_ingredient_id: globalIngId ?? undefined 
+              } : m)),
             };
           }
           return group;
@@ -322,6 +390,25 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
     });
   };
 
+  const handleGlobalClose = async () => {
+    if (!editingProduct) return;
+
+    for (const groupId of Object.keys(editingGroupState)) {
+      await handleUpdateGroupName(groupId);
+    }
+
+    for (const modId of Object.keys(editingModifierState)) {
+      const group = modifierGroups.find(g => g.modifiers?.some(m => m.id === modId));
+      if (group) {
+        await handleUpdateModifier(group.id, modId);
+      }
+    }
+    
+    // Forzamos la actualización de la lista maestra para que refleje los nuevos grupos creados
+    onReload();
+    setEditingProduct(null);
+  };
+
   return (
     <section className="space-y-3">
       <div className="flex justify-between items-center px-1">
@@ -353,69 +440,85 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
           </button>
         </div>
       ) : (
-        products.map((product) => (
-          <div key={product.id} className="p-4 bg-white border rounded-2xl shadow-sm flex justify-between items-center gap-2">
-            <div className="pr-2 flex-1">
-              <h3 className="font-semibold text-gray-900 text-sm">{product.name}</h3>
-              {product.description && <p className="text-xs text-gray-400 line-clamp-1">{product.description}</p>}
-              <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${product.is_available ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                {product.is_available ? 'Disponible' : 'Agotado'}
-              </span>
-            </div>
+        products.map((product) => {
+          // Lógica para determinar si mostrar el badge de Opciones
+          const groupsCount = product.modifier_groups?.length || 0;
 
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={() => {
-                  setEditingProduct(product);
-                  setEditProdName(product.name);
-                  setEditProdPrice(product.price.toString());
-                  setEditProdDesc(product.description || '');
-                  fetchProductModifiers(product.id);
-                }}
-                className="p-2 bg-gray-50 hover:bg-gray-100 border text-gray-600 rounded-xl transition-all active:scale-95 cursor-pointer"
-                title="Editar platillo y opciones"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
-
-              <button
-                onClick={() => handleDeleteProduct(product)}
-                className="p-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded-xl transition-all active:scale-95 cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-
-              <div className="flex items-center gap-1 bg-gray-50 border px-2 py-1 rounded-xl">
-                <span className="text-xs font-bold text-gray-400">$</span>
-                <input
-                  type="number"
-                  step="0.5"
-                  defaultValue={product.price}
-                  onBlur={(e) => updatePrice(product.id, parseFloat(e.target.value))}
-                  className="w-12 text-sm font-bold text-gray-900 bg-transparent text-center focus:outline-none"
-                />
+          return (
+            <div key={product.id} className="p-4 bg-white border rounded-2xl shadow-sm flex justify-between items-center gap-2">
+              <div className="pr-2 flex-1">
+                <h3 className="font-semibold text-gray-900 text-sm">{product.name}</h3>
+                {product.description && <p className="text-xs text-gray-400 line-clamp-1">{product.description}</p>}
+                
+                {/* --- CONTENEDOR DE BADGES VISUALES --- */}
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full ${product.is_available ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                    {product.is_available ? 'Disponible' : 'Agotado'}
+                  </span>
+                  
+                  {groupsCount > 0 && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                      <Layers className="w-3 h-3" />
+                      {groupsCount} {groupsCount === 1 ? 'Grupo' : 'Grupos'}
+                    </span>
+                  )}
+                </div>
               </div>
 
-              <button
-                disabled={updatingId === product.id}
-                onClick={() => toggleAvailability(product)}
-                className={`p-2 rounded-xl text-xs font-bold border flex items-center gap-1 transition-all active:scale-95 cursor-pointer ${
-                  product.is_available
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                    : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-                }`}
-              >
-                {updatingId === product.id ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : product.is_available ? (
-                  <Eye className="w-4 h-4" />
-                ) : (
-                  <EyeOff className="w-4 h-4" />
-                )}
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={() => {
+                    setEditingProduct(product);
+                    setEditProdName(product.name);
+                    setEditProdPrice(product.price.toString());
+                    setEditProdDesc(product.description || '');
+                    fetchProductData(product.id);
+                  }}
+                  className="p-2 bg-gray-50 hover:bg-gray-100 border text-gray-600 rounded-xl transition-all active:scale-95 cursor-pointer"
+                  title="Editar platillo y opciones"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  onClick={() => handleDeleteProduct(product)}
+                  className="p-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded-xl transition-all active:scale-95 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+
+                <div className="flex items-center gap-1 bg-gray-50 border px-2 py-1 rounded-xl">
+                  <span className="text-xs font-bold text-gray-400">$</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    defaultValue={product.price}
+                    onBlur={(e) => updatePrice(product.id, parseFloat(e.target.value))}
+                    className="w-12 text-sm font-bold text-gray-900 bg-transparent text-center focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  disabled={updatingId === product.id}
+                  onClick={() => toggleAvailability(product)}
+                  className={`p-2 rounded-xl text-xs font-bold border flex items-center gap-1 transition-all active:scale-95 cursor-pointer ${
+                    product.is_available
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                      : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                  }`}
+                >
+                  {updatingId === product.id ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : product.is_available ? (
+                    <Eye className="w-4 h-4" />
+                  ) : (
+                    <EyeOff className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
             </div>
-          </div>
-        ))
+          );
+        })
       )}
 
       {/* Modal Agregar Producto */}
@@ -505,12 +608,12 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
                   <p className="text-xs text-gray-500">Configura nombre, precio y opciones</p>
                 </div>
               </div>
-              <button onClick={() => setEditingProduct(null)} className="p-1 text-gray-400 hover:text-gray-600 cursor-pointer">
+              <button onClick={handleGlobalClose} className="p-1 text-gray-400 hover:text-gray-600 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="overflow-y-auto flex-1 space-y-5 pr-1">
+            <div className="overflow-y-auto flex-1 space-y-5 pr-1 pb-10">
               <form onSubmit={handleSaveProductEdit} id="edit-product-form" className="space-y-3 bg-gray-50 p-4 rounded-2xl border">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">Información General</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -560,6 +663,7 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
                       placeholder="Nombre del Grupo (ej. Ingredientes)"
                       value={newGroupName}
                       onChange={(e) => setNewGroupName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddGroup()}
                       className="flex-1 p-2 bg-white border rounded-xl text-xs font-medium text-gray-900"
                     />
                     <select
@@ -603,35 +707,96 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
                     {modifierGroups.map((group) => {
                       const currentInput = modifierInputs[group.id] || { name: '', priceDelta: '' };
                       const isSingle = group.max_selections === 1;
+                      const isEditingGroup = editingGroupState[group.id] !== undefined;
+                      const groupEditName = editingGroupState[group.id] ?? group.name;
+                      const suggestedIngredients = currentInput.name.trim().length > 0 
+                        ? globalIngredients.filter(g => g.name.toLowerCase().includes(currentInput.name.toLowerCase()))
+                        : [];
 
                       return (
                         <div key={group.id} className="p-3.5 bg-white border rounded-2xl shadow-sm space-y-3">
-                          <div className="flex justify-between items-center border-b pb-2">
-                            <div>
-                              <h5 className="font-bold text-xs text-gray-900 uppercase">{group.name}</h5>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full">
-                                  {group.is_required ? 'Obligatorio' : 'Opcional'}
-                                </span>
-                                <span className="text-[10px] text-gray-500 font-medium bg-gray-100 px-2 py-0.5 rounded-full">
-                                  {isSingle ? 'Selección Única' : `Múltiple (Máx. ${group.max_selections})`}
-                                </span>
+                          
+                          {/* Cabecera del Grupo */}
+                          <div className="flex justify-between items-center border-b pb-2 gap-2">
+                            {isEditingGroup ? (
+                              <div className="flex-1 flex gap-2 items-center">
+                                <input
+                                  type="text"
+                                  value={groupEditName}
+                                  onChange={(e) => setEditingGroupState({ ...editingGroupState, [group.id]: e.target.value })}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleUpdateGroupName(group.id);
+                                    }
+                                  }}
+                                  className="flex-1 p-1 bg-white border rounded-lg text-xs font-bold uppercase text-gray-900"
+                                  autoFocus
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateGroupName(group.id)}
+                                  className="p-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 cursor-pointer"
+                                  title="Guardar nombre"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const copy = { ...editingGroupState };
+                                    delete copy[group.id];
+                                    setEditingGroupState(copy);
+                                  }}
+                                  className="p-1 text-gray-400 hover:text-gray-600 cursor-pointer"
+                                  title="Cancelar"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
                               </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteGroup(group.id, group.name)}
-                              className="text-red-500 hover:text-red-700 p-1 text-xs font-semibold flex items-center gap-1 cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" /> Eliminar grupo
-                            </button>
+                            ) : (
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <h5 className="font-bold text-xs text-gray-900 uppercase">{group.name}</h5>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingGroupState({ ...editingGroupState, [group.id]: group.name })}
+                                    className="text-gray-400 hover:text-emerald-600 cursor-pointer"
+                                    title="Editar nombre del grupo"
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                 </button>
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full">
+                                    {group.is_required ? 'Obligatorio' : 'Opcional'}
+                                  </span>
+                                  <span className="text-[10px] text-gray-500 font-medium bg-gray-100 px-2 py-0.5 rounded-full">
+                                    {isSingle ? 'Selección Única' : `Múltiple (Máx. ${group.max_selections})`}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {!isEditingGroup && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteGroup(group.id, group.name)}
+                                className="text-red-500 hover:text-red-700 p-1 text-xs font-semibold flex items-center gap-1 cursor-pointer shrink-0"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" /> Eliminar grupo
+                              </button>
+                            )}
                           </div>
 
-                          {/* Listado de Opciones con opción de Editar y Borrar */}
-                          <div className="space-y-2 pl-2">
+                          {/* Listado de Opciones */}
+                          <div className="space-y-2 pl-2 relative">
                             {group.modifiers?.map((mod) => {
                               const isEditingThis = editingModifierState[mod.id] !== undefined;
                               const modState = editingModifierState[mod.id] || { name: mod.name, priceDelta: mod.price_delta.toString() };
+                              
+                              const globalLink = globalIngredients.find(g => g.id === mod.global_ingredient_id || g.name.toLowerCase() === mod.name.toLowerCase());
+                              const isGlobalAgotado = globalLink && !globalLink.is_available;
 
                               return (
                                 <div key={mod.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-xl border text-xs gap-2">
@@ -646,7 +811,14 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
                                             [mod.id]: { ...modState, name: e.target.value },
                                           })
                                         }
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleUpdateModifier(group.id, mod.id);
+                                          }
+                                        }}
                                         className="flex-1 p-1 bg-white border rounded-lg text-xs text-gray-900 font-medium"
+                                        autoFocus
                                       />
                                       <input
                                         type="number"
@@ -658,6 +830,12 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
                                             [mod.id]: { ...modState, priceDelta: e.target.value },
                                           })
                                         }
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleUpdateModifier(group.id, mod.id);
+                                          }
+                                        }}
                                         className="w-16 p-1 bg-white border rounded-lg text-xs text-gray-900 font-medium"
                                       />
                                       <button
@@ -683,9 +861,19 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
                                     </div>
                                   ) : (
                                     <>
-                                      <span className="font-medium text-gray-800 flex-1">{mod.name}</span>
+                                      <div className="flex-1 flex flex-col">
+                                        <span className={`font-medium ${isGlobalAgotado ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                                          {mod.name}
+                                        </span>
+                                        {isGlobalAgotado && (
+                                          <span className="text-[9px] font-bold text-red-500 uppercase tracking-widest mt-0.5">
+                                            Agotado en Inventario
+                                          </span>
+                                        )}
+                                      </div>
+                                      
                                       <div className="flex items-center gap-3">
-                                        <span className="font-bold text-emerald-600">
+                                        <span className={`font-bold ${isGlobalAgotado ? 'text-gray-400 line-through' : 'text-emerald-600'}`}>
                                           {mod.price_delta > 0 ? `+$${mod.price_delta.toFixed(2)}` : 'Sin costo extra'}
                                         </span>
                                         <button
@@ -716,23 +904,56 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
                               );
                             })}
 
-                            {/* Inputs para agregar una nueva opción al grupo */}
-                            <div className="flex gap-2 pt-1">
-                              <input
-                                type="text"
-                                placeholder="Nombre (ej. Arrachera)"
-                                value={currentInput.name}
-                                onChange={(e) =>
-                                  setModifierInputs({
-                                    ...modifierInputs,
-                                    [group.id]: {
-                                      ...currentInput,
-                                      name: e.target.value,
-                                    },
-                                  })
-                                }
-                                className="flex-1 p-2 border rounded-xl text-xs font-medium bg-white text-gray-900"
-                              />
+                            {/* COMBOBOX PREDICTIVO */}
+                            <div className="flex gap-2 pt-1 relative">
+                              <div className="flex-1 relative">
+                                <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
+                                <input
+                                  type="text"
+                                  placeholder="Buscar o crear ingrediente..."
+                                  value={currentInput.name}
+                                  onFocus={() => setActiveDropdown(group.id)}
+                                  onBlur={() => setTimeout(() => setActiveDropdown(null), 200)}
+                                  onChange={(e) =>
+                                    setModifierInputs({
+                                      ...modifierInputs,
+                                      [group.id]: { ...currentInput, name: e.target.value },
+                                    })
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleAddModifier(group.id);
+                                    }
+                                  }}
+                                  className="w-full pl-8 p-2 border rounded-xl text-xs font-medium bg-white text-gray-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                />
+                                
+                                {activeDropdown === group.id && currentInput.name.length > 0 && suggestedIngredients.length > 0 && (
+                                  <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
+                                    {suggestedIngredients.map(ing => (
+                                      <div
+                                        key={ing.id}
+                                        onClick={() =>
+                                          setModifierInputs({
+                                            ...modifierInputs,
+                                            [group.id]: { ...currentInput, name: ing.name },
+                                          })
+                                        }
+                                        className="p-2.5 hover:bg-emerald-50 text-xs font-medium text-gray-700 cursor-pointer flex justify-between items-center border-b border-gray-50 last:border-0"
+                                      >
+                                        <span>{ing.name}</span>
+                                        {!ing.is_available && (
+                                          <span className="text-[9px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded">
+                                            Agotado
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
                               <input
                                 type="number"
                                 step="0.5"
@@ -741,12 +962,15 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
                                 onChange={(e) =>
                                   setModifierInputs({
                                     ...modifierInputs,
-                                    [group.id]: {
-                                      ...currentInput,
-                                      priceDelta: e.target.value,
-                                    },
+                                    [group.id]: { ...currentInput, priceDelta: e.target.value },
                                   })
                                 }
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddModifier(group.id);
+                                  }
+                                }}
                                 className="w-20 p-2 border rounded-xl text-xs font-medium bg-white text-gray-900"
                               />
                               <button
@@ -769,7 +993,7 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
             <div className="pt-2 border-t shrink-0 flex justify-end">
               <button
                 type="button"
-                onClick={() => setEditingProduct(null)}
+                onClick={handleGlobalClose}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs shadow-md transition-all cursor-pointer"
               >
                 Cerrar y Guardar

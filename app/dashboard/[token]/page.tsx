@@ -11,6 +11,7 @@ import { TenantLinksCard } from '@/components/dashboard/TenantLinksCard';
 import { SecurityCard } from '@/components/dashboard/SecurityCard';
 import { ProductsSection } from '@/components/dashboard/ProductsSection';
 import { DeleteTenantModal } from '@/components/dashboard/DeleteTenantModal';
+import { GlobalIngredientsCard } from '@/components/dashboard/GlobalIngredientsCard';
 
 interface PageProps {
   params: Promise<{ token: string }>;
@@ -102,7 +103,8 @@ export default function TenantDashboardPage({ params }: PageProps) {
 
     const [{ data: catData }, { data: prodData }] = await Promise.all([
       supabase.from('categories').select('*').eq('tenant_id', tenant.id).order('sort_order'),
-      supabase.from('products').select('*, categories(name)').eq('tenant_id', tenant.id).order('category_id'),
+      // AQUÍ ESTÁ LA MAGIA: Incluimos modifier_groups(id) para que el frontend detecte las opciones de los platillos
+      supabase.from('products').select('*, categories(name), modifier_groups(id)').eq('tenant_id', tenant.id).order('category_id'),
     ]);
 
     setCategories(catData || []);
@@ -156,6 +158,9 @@ export default function TenantDashboardPage({ params }: PageProps) {
             tenant={tenant}
             onPinUpdated={(newPin) => setTenant({ ...tenant, admin_pin: newPin })}
           />
+
+          {/* === GESTOR DE INVENTARIO GLOBAL === */}
+          <GlobalIngredientsCard tenantId={tenant.id} />
 
           <ProductsSection
             tenant={tenant}
