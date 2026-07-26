@@ -16,8 +16,17 @@ interface Props {
   onReload: () => void;
 }
 
-export function ProductsSection({ tenant, categories, products, loading, onReload }: Props) {
+export function ProductsSection({ tenant, categories, products: initialProducts, loading, onReload }: Props) {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // Fuente de verdad local para evitar refetches globales innecesarios y saltos de posición
+  const [localProducts, setLocalProducts] = useState<Product[]>(initialProducts);
+  const [prevPropsProducts, setPrevPropsProducts] = useState<Product[]>(initialProducts);
+
+  if (initialProducts !== prevPropsProducts) {
+    setPrevPropsProducts(initialProducts);
+    setLocalProducts(initialProducts);
+  }
 
   // Modales
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -37,24 +46,52 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
   });
 
   const toggleAvailability = async (product: Product) => {
+    const nextState = !product.is_available;
     setUpdatingId(product.id);
-    const { error } = await supabase.from('products').update({ is_available: !product.is_available }).eq('id', product.id);
-    if (!error) onReload();
+
+    // 1. Cambio local instantáneo (Cero parpadeos, cero retrasos)
+    const updated = localProducts.map((p) => (p.id === product.id ? { ...p, is_available: nextState } : p));
+    setLocalProducts(updated);
+
+    const { error } = await supabase.from('products').update({ is_available: nextState }).eq('id', product.id);
+    
+    if (error) {
+      alert(`Error al actualizar disponibilidad: ${error.message}`);
+      setLocalProducts(initialProducts); // Revertir si ocurre un error de red
+    }
     setUpdatingId(null);
   };
 
   const updatePrice = async (productId: string, newPrice: number) => {
     if (isNaN(newPrice) || newPrice < 0) return;
     setUpdatingId(productId);
-    await supabase.from('products').update({ price: newPrice }).eq('id', productId);
-    onReload();
+
+    // Cambio local instantáneo
+    const updated = localProducts.map((p) => (p.id === productId ? { ...p, price: newPrice } : p));
+    setLocalProducts(updated);
+
+    const { error } = await supabase.from('products').update({ price: newPrice }).eq('id', productId);
+    if (error) {
+      alert(`Error al actualizar precio: ${error.message}`);
+      setLocalProducts(initialProducts);
+    }
     setUpdatingId(null);
   };
 
   const executeDeleteProduct = async (product: Product) => {
     setUpdatingId(product.id);
+
+    // Eliminación local instantánea
+    const updated = localProducts.filter((p) => p.id !== product.id);
+    setLocalProducts(updated);
+
     const { error } = await supabase.from('products').delete().eq('id', product.id);
-    if (!error) onReload();
+    if (error) {
+      alert(`Error al eliminar platillo: ${error.message}`);
+      setLocalProducts(initialProducts);
+    } else {
+      onReload(); // Solo recargamos si es necesario cuando se elimina físicamente o se agregan nuevos
+    }
     setUpdatingId(null);
     setConfirmModal((prev) => ({ ...prev, isOpen: false }));
   };
@@ -95,7 +132,7 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
 
       if (!prodErr) {
         setIsAddModalOpen(false);
-        onReload();
+        onReload(); // Recarga necesaria al crear para traer IDs generados por la BD
       }
     } finally {
       setCreatingProduct(false);
@@ -126,9 +163,9 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
         </div>
       </div>
 
-      {loading ? (
+      {loading && localProducts.length === 0 ? (
         <div className="text-center py-6 text-xs text-slate-400">Cargando platillos...</div>
-      ) : products.length === 0 ? (
+      ) : localProducts.length === 0 ? (
         <div className="text-center py-10 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 text-slate-400 space-y-2">
           <Utensils className="w-8 h-8 mx-auto text-slate-300" />
           <p className="text-xs font-medium text-slate-600">Aún no has agregado platillos.</p>
@@ -138,7 +175,7 @@ export function ProductsSection({ tenant, categories, products, loading, onReloa
         </div>
       ) : (
         <div className="space-y-3">
-          {products.map((product) => {
+          {localProducts.map((product) => {
             const groupsCount = product.modifier_groups?.length || 0;
 
             return (
