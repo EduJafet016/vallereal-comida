@@ -161,7 +161,7 @@ export default function TenantClientView({
 
             <div className="flex-1 min-w-0 space-y-1">
               <div className="flex items-center justify-between gap-2">
-                <h1 className="text-xl font-black text-slate-900 tracking-tight truncate">{tenant.name}</h1>
+                <h1 className="text-xl font-black text-slate-900 tracking-tight break-words">{tenant.name}</h1>
                 <span
                   className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 flex items-center gap-1.5 shadow-2xs ${
                     isOpen
