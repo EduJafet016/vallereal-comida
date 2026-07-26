@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabase';
 import { BeforeInstallPromptEvent, NavigatorStandalone, Tenant, Product, Category } from '@/types';
 import Link from 'next/link';
 import {
-  Store,
   ChevronRight,
   Search,
   Clock,
@@ -15,6 +14,7 @@ import {
   Sparkles,
   Download,
   Heart,
+  Store,
 } from 'lucide-react';
 import { isStoreOpen } from '@/lib/utils';
 import { AuthModal } from '@/app/components/AuthModal';
@@ -23,6 +23,7 @@ import { AuthModal } from '@/app/components/AuthModal';
 type TenantWithMenu = Tenant & {
   products?: Pick<Product, 'name' | 'description'>[];
   categories?: Pick<Category, 'name'>[];
+  logo_url?: string | null; // Opcional por si deseas implementar logos en el futuro
 };
 
 export default function RootHomePage() {
@@ -160,7 +161,6 @@ export default function RootHomePage() {
       return matchTenant || matchCategory || matchProduct;
     })
     .sort((a, b) => {
-      // Ordenamos priorizando si están activos manualmente
       const aOpen = a.is_active ?? false;
       const bOpen = b.is_active ?? false;
 
@@ -171,20 +171,25 @@ export default function RootHomePage() {
     });
 
   return (
-    <main className="min-h-screen bg-white flex flex-col justify-between pb-6">
+    <main className="min-h-screen bg-slate-50/60 flex flex-col justify-between pb-8">
       <div>
-        <header className="bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 text-white pt-8 pb-10 px-4 rounded-b-[2.5rem] shadow-md">
-          <div className="max-w-md mx-auto space-y-4">
+        {/* Header Rediseñado con profundidad */}
+        <header className="bg-gradient-to-b from-emerald-800 via-emerald-700 to-teal-700 text-white pt-6 pb-12 px-4 rounded-b-[2.5rem] shadow-xl relative overflow-hidden">
+          {/* Detalles decorativos de fondo sutiles */}
+          <div className="absolute -right-10 -top-10 w-40 h-40 bg-emerald-600/30 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-teal-600/20 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="max-w-md mx-auto space-y-4 relative z-10">
             <div className="flex justify-between items-center">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-[11px] font-medium text-emerald-100 border border-white/10">
-                <MapPin className="w-3 h-3 text-emerald-300" /> Valle Real
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-black/10 backdrop-blur-md rounded-full text-xs font-semibold text-emerald-100 border border-white/10 shadow-xs">
+                <MapPin className="w-3.5 h-3.5 text-emerald-300" /> Valle Real
               </span>
 
               <div className="flex items-center gap-2">
                 {!isInstalled && (
                   <button
                     onClick={handleInstallClick}
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-950 bg-emerald-300 hover:bg-emerald-200 px-3 py-1.5 rounded-xl transition-all shadow-sm cursor-pointer animate-pulse"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-950 bg-emerald-300 hover:bg-emerald-200 px-3.5 py-1.5 rounded-xl transition-all shadow-sm cursor-pointer animate-pulse"
                   >
                     <Download className="w-3.5 h-3.5" /> Instalar App
                   </button>
@@ -192,38 +197,42 @@ export default function RootHomePage() {
 
                 <button
                   onClick={() => setIsAuthOpen(true)}
-                  className="text-xs font-semibold text-emerald-100 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl transition-all border border-white/10 cursor-pointer"
+                  className="text-xs font-semibold text-emerald-100 hover:text-white bg-white/10 hover:bg-white/20 px-3.5 py-1.5 rounded-xl transition-all border border-white/10 backdrop-blur-md cursor-pointer"
                 >
                   Comerciantes
                 </button>
               </div>
             </div>
 
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight leading-tight">
+            <div className="pt-2">
+              <h1 className="text-3xl font-black tracking-tight leading-none">
                 Valle Real Comida
               </h1>
-              <p className="text-xs text-emerald-100/90 font-medium mt-1">
+              <p className="text-xs text-emerald-100/80 font-medium mt-1.5">
                 Pide directamente a tus locales favoritos sin comisiones
               </p>
             </div>
 
+            {/* Barra de búsqueda flotante refinada */}
             <div className="relative pt-2">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-5 z-10" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-4 top-5.5 z-10 pointer-events-none" />
               <input
                 type="text"
                 placeholder="Buscar negocio, categoría o platillo..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-white text-gray-900 placeholder:text-gray-400 rounded-2xl text-xs font-medium shadow-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all"
+                className="w-full pl-11 pr-4 py-3.5 bg-white text-slate-900 placeholder:text-slate-400 rounded-2xl text-xs font-medium shadow-lg shadow-black/5 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all border border-slate-100"
               />
             </div>
           </div>
         </header>
 
-        <section className="max-w-md mx-auto px-4 mt-6 space-y-4">
-          <div className="bg-emerald-50/60 border border-emerald-100 p-4 rounded-2xl flex items-start gap-3">
-            <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+        <section className="max-w-md mx-auto px-4 mt-6 space-y-5">
+          {/* Tarjeta de información directa */}
+          <div className="bg-emerald-50/80 border border-emerald-100/80 p-4 rounded-2xl flex items-start gap-3.5 shadow-xs">
+            <div className="p-2 bg-emerald-600 text-white rounded-xl shadow-xs shrink-0 mt-0.5">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
             <div className="text-xs space-y-0.5">
               <p className="font-bold text-emerald-950">Pedidos Directos</p>
               <p className="text-emerald-800/80 leading-relaxed">
@@ -232,70 +241,76 @@ export default function RootHomePage() {
             </div>
           </div>
 
-          <div className="flex justify-between items-center px-1 pt-2">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+          <div className="flex justify-between items-center px-1 pt-1">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
               <UtensilsCrossed className="w-3.5 h-3.5 text-emerald-600" /> Locales Disponibles
             </h2>
-            <span className="text-[11px] font-semibold text-gray-400">
-              {filteredTenants.length} encontrados
+            <span className="text-[11px] font-semibold text-slate-400 bg-slate-200/60 px-2.5 py-0.5 rounded-full">
+              {filteredTenants.length} {filteredTenants.length === 1 ? 'encontrado' : 'encontrados'}
             </span>
           </div>
 
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-20 bg-white rounded-2xl border border-gray-100 animate-pulse" />
+                <div key={i} className="h-24 bg-white rounded-2xl border border-slate-100 animate-pulse shadow-xs" />
               ))}
             </div>
           ) : filteredTenants.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center space-y-2">
-              <p className="text-sm font-semibold text-gray-700">No se encontraron resultados</p>
-              <p className="text-xs text-gray-400">Intenta buscar con otra palabra clave de platillo, categoría o local.</p>
+            <div className="bg-white rounded-2xl border border-slate-100 p-8 text-center space-y-2 shadow-xs">
+              <p className="text-sm font-semibold text-slate-700">No se encontraron resultados</p>
+              <p className="text-xs text-slate-400">Intenta buscar con otra palabra clave de platillo, categoría o local.</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               {filteredTenants.map((tenant) => {
                 const isWithinSchedule = isStoreOpen(tenant.opening_time, tenant.closing_time);
                 
-                // EL BOTÓN MANDA: Si está encendido, apareces abierto pase lo que pase.
                 const isOpen = tenant.is_active ?? false;
-                
-                // Si está prendido pero ya cerró su horario normal, es hora extra
                 const isExtraHours = isOpen && !isWithinSchedule;
+
+                // Generador de iniciales elegante para el avatar del local
+                const initial = tenant.name ? tenant.name.charAt(0).toUpperCase() : 'V';
 
                 return (
                   <Link
                     key={tenant.id}
                     href={`/${tenant.slug}`}
                     prefetch={false}
-                    className={`group block bg-white border p-4 rounded-2xl shadow-xs hover:shadow-md active:scale-[0.99] transition-all relative overflow-hidden ${
-                      isOpen ? 'border-gray-100 hover:border-emerald-300' : 'border-gray-100 opacity-80'
+                    className={`group block bg-white border p-4 sm:p-4.5 rounded-2xl shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all relative overflow-hidden ${
+                      isOpen ? 'border-slate-100 hover:border-emerald-200' : 'border-slate-100 opacity-75'
                     }`}
                   >
-                    <div className="flex items-center gap-3.5">
+                    <div className="flex items-center gap-4">
+                      {/* Avatar Inteligente (Logotipo o Inicial Estilizada) */}
                       <div
-                        className={`p-3 rounded-2xl shrink-0 transition-colors ${
+                        className={`w-12 h-12 rounded-2xl shrink-0 flex items-center justify-center font-black text-base transition-all shadow-xs ${
                           isOpen
-                            ? 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white'
-                            : 'bg-red-50 text-red-500 group-hover:bg-red-100'
+                            ? 'bg-emerald-50 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white group-hover:shadow-sm'
+                            : 'bg-slate-100 text-slate-400'
                         }`}
                       >
-                        <Store className="w-5 h-5" />
+                        {tenant.logo_url ? (
+                          <img src={tenant.logo_url} alt={tenant.name} className="w-full h-full object-cover rounded-2xl" />
+                        ) : (
+                          initial
+                        )}
                       </div>
 
-                      <div className="flex-1 min-w-0 space-y-0.5">
-                        <div className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center justify-between gap-2">
                           <h3 className={`font-bold text-sm truncate transition-colors ${
-                            isOpen ? 'text-gray-900 group-hover:text-emerald-700' : 'text-gray-500'
+                            isOpen ? 'text-slate-900 group-hover:text-emerald-700' : 'text-slate-500'
                           }`}>
                             {tenant.name}
                           </h3>
 
+                          {/* Píldora de Estado Elegante */}
                           <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 ${
+                            className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full shrink-0 flex items-center gap-1.5 shadow-2xs ${
                               isOpen
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-red-100 text-red-700'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-100/60'
+                                : 'bg-rose-50 text-rose-600 border border-rose-100/60'
                             }`}
                           >
                             {isOpen && (
@@ -306,29 +321,30 @@ export default function RootHomePage() {
                         </div>
 
                         {tenant.description && (
-                          <p className="text-xs text-gray-500 font-normal truncate">
+                          <p className="text-xs text-slate-500 font-normal truncate">
                             {tenant.description}
                           </p>
                         )}
 
-                        <div className="flex items-center gap-1 text-[11px] text-gray-400 pt-0.5">
-                          <Clock className={`w-3 h-3 shrink-0 ${isOpen ? 'text-emerald-600' : 'text-gray-400'}`} />
-                          <span>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-400 pt-0.5">
+                          <span className="inline-flex items-center gap-1 font-medium">
+                            <Clock className={`w-3 h-3 shrink-0 ${isOpen ? 'text-emerald-600' : 'text-slate-400'}`} />
                             {tenant.opening_time.slice(0, 5)} - {tenant.closing_time.slice(0, 5)} hrs
                           </span>
 
-                          {/* ¡Regresó la etiqueta de horas extras! */}
                           {isExtraHours && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-600 font-bold ml-1 bg-blue-50 px-1.5 py-0.5 rounded-md">
+                            <span className="inline-flex items-center gap-0.5 text-[10px] text-indigo-600 font-bold bg-indigo-50 px-1.5 py-0.5 rounded-md border border-indigo-100/50">
                               <Sparkles className="w-2.5 h-2.5" /> Fuera de horario
                             </span>
                           )}
                         </div>
                       </div>
 
-                      <ChevronRight className={`w-5 h-5 transition-all shrink-0 ${
-                        isOpen ? 'text-gray-300 group-hover:text-emerald-600 group-hover:translate-x-0.5' : 'text-gray-200'
-                      }`} />
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all shrink-0 ${
+                        isOpen ? 'bg-slate-50 text-slate-300 group-hover:bg-emerald-50 group-hover:text-emerald-600 group-hover:translate-x-0.5' : 'text-slate-200'
+                      }`}>
+                        <ChevronRight className="w-4 h-4" />
+                      </div>
                     </div>
                   </Link>
                 );
@@ -336,11 +352,12 @@ export default function RootHomePage() {
             </div>
           )}
 
+          {/* Footer minimalista */}
           <div className="pt-8 pb-4 text-center space-y-1">
-            <p className="text-xs font-semibold text-gray-400 flex items-center justify-center gap-1">
-              Hecho con <Heart className="w-3 h-3 text-red-500 fill-red-500" /> para Valle Real by EduJafet016
+            <p className="text-xs font-semibold text-slate-400 flex items-center justify-center gap-1">
+              Hecho con <Heart className="w-3 h-3 text-rose-500 fill-rose-500" /> para Valle Real by EduJafet016
             </p>
-            <p className="text-[10px] text-gray-400">
+            <p className="text-[10px] text-slate-400">
               Apoya el comercio local.
             </p>
           </div>
