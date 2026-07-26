@@ -1,6 +1,7 @@
 'use client';
 
-import { use } from 'react';
+import { use, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTenantDashboard } from '@/hooks/useTenantDashboard';
 
 import { PinAuthCard } from '@/components/dashboard/PinAuthCard';
@@ -10,7 +11,7 @@ import { SecurityCard } from '@/components/dashboard/SecurityCard';
 import { ProductsSection } from '@/components/dashboard/ProductsSection';
 import { DeleteTenantModal } from '@/components/dashboard/DeleteTenantModal';
 import { GlobalIngredientsCard } from '@/components/dashboard/GlobalIngredientsCard';
-import { Store, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, ArrowLeft, LogOut } from 'lucide-react';
 
 interface PageProps {
   params: Promise<{ token: string }>;
@@ -18,6 +19,7 @@ interface PageProps {
 
 export default function TenantDashboardPage({ params }: PageProps) {
   const { token } = use(params);
+  const router = useRouter();
 
   const {
     tenant,
@@ -31,6 +33,26 @@ export default function TenantDashboardPage({ params }: PageProps) {
     loadingProducts,
     reloadProducts,
   } = useTenantDashboard(token);
+
+  // Validar persistencia de sesión al montar o cambiar el token
+  useEffect(() => {
+    const hasSession =
+      localStorage.getItem(`auth_token_${token}`) === 'true' ||
+      sessionStorage.getItem(`auth_token_${token}`) === 'true';
+
+    if (hasSession) {
+      setIsAuthenticated(true);
+    }
+  }, [token, setIsAuthenticated]);
+
+  const handleLogout = () => {
+    localStorage.removeItem(`auth_token_${token}`);
+    sessionStorage.removeItem(`auth_token_${token}`);
+    localStorage.removeItem('current_tenant_token');
+    sessionStorage.removeItem('current_tenant_token');
+    setIsAuthenticated(false);
+    router.push('/');
+  };
 
   if (loadingTenant) {
     return (
@@ -63,13 +85,17 @@ export default function TenantDashboardPage({ params }: PageProps) {
       {/* Contenedor Vista App Móvil Centrada */}
       <main className="w-full max-w-md bg-slate-50 min-h-screen border-x border-slate-200/70 shadow-sm flex flex-col pb-12">
         
-        {/* Banner Hero Superior (Mismo estilo que la Landing pública) */}
+        {/* Banner Hero Superior */}
         <header className="bg-[#007A55] text-white p-5 pt-6 rounded-b-[2rem] shadow-sm space-y-3 relative overflow-hidden shrink-0">
           <div className="flex items-center justify-between relative z-10">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-white/15 backdrop-blur-md text-white border border-white/10">
-              <Store className="w-3.5 h-3.5" />
-              Panel de Administración
-            </span>
+            {/* BOTÓN REGRESAR AL INICIO */}
+            <button
+              onClick={() => router.push('/')}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-white/15 hover:bg-white/25 backdrop-blur-md text-white border border-white/10 transition-all cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Regresar
+            </button>
 
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-400/20 text-emerald-100 border border-emerald-400/30">
               <ShieldCheck className="w-3 h-3 text-emerald-300" />
@@ -86,7 +112,6 @@ export default function TenantDashboardPage({ params }: PageProps) {
             </p>
           </div>
 
-          {/* Decoración geométrica sutil en fondo */}
           <div className="absolute -bottom-8 -right-8 w-32 h-32 bg-white/5 rounded-full blur-xl pointer-events-none" />
         </header>
 
@@ -102,25 +127,20 @@ export default function TenantDashboardPage({ params }: PageProps) {
             </div>
           ) : (
             <>
-              {/* Tarjeta de Datos y Estado */}
               <TenantSettingsCard
                 tenant={tenant}
                 onTenantUpdated={(updated) => setTenant(updated)}
               />
 
-              {/* Tarjeta de Enlaces */}
               <TenantLinksCard tenant={tenant} />
 
-              {/* Tarjeta de Seguridad */}
               <SecurityCard
                 tenant={tenant}
                 onPinUpdated={(newPin) => setTenant({ ...tenant, admin_pin: newPin })}
               />
 
-              {/* Extras e Ingredientes Globales */}
               <GlobalIngredientsCard tenantId={tenant.id} />
 
-              {/* Sección de Platillos y Menú */}
               <ProductsSection
                 tenant={tenant}
                 categories={categories}
@@ -129,8 +149,18 @@ export default function TenantDashboardPage({ params }: PageProps) {
                 onReload={reloadProducts}
               />
 
-              {/* Zona de Peligro */}
               <DeleteTenantModal tenant={tenant} token={token} />
+
+              {/* Botón de Cerrar Sesión Adicional al final */}
+              <div className="pt-4">
+                <button
+                  onClick={handleLogout}
+                  className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/60 font-bold py-3.5 rounded-2xl text-xs transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4 text-rose-600" />
+                  Cerrar Sesión en este Equipo
+                </button>
+              </div>
             </>
           )}
         </div>

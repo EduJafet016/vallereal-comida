@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Tenant } from '@/types';
-import { Store, Truck, Power, Loader2, Upload, Settings } from 'lucide-react';
+import { Truck, Power, Loader2, Upload, Settings } from 'lucide-react';
 import { TenantScheduleInputs } from './TenantScheduleInputs';
 import { TenantDeliveryInputs } from './TenantDeliveryInputs';
 
@@ -187,6 +187,7 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
           <div className="flex items-center gap-3">
             <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-[#007A55] flex items-center justify-center font-black text-xl shadow-2xs shrink-0 border border-emerald-100/80 overflow-hidden">
               {tenantLogo ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={tenantLogo} alt={tenant.name} className="w-full h-full object-cover" />
               ) : (
                 initialLetter
@@ -260,6 +261,7 @@ export function TenantSettingsCard({ tenant, onTenantUpdated }: Props) {
           <div className="flex items-center gap-4 p-3 bg-slate-50/70 border border-slate-200/70 rounded-xl">
             <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-[#007A55] flex items-center justify-center font-black text-xl shrink-0 border border-emerald-100 overflow-hidden shadow-2xs">
               {tenantLogo ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={tenantLogo} alt={tenant.name} className="w-full h-full object-cover" />
               ) : (
                 initialLetter

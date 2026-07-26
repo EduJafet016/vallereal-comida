@@ -4,14 +4,17 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Store } from 'lucide-react';
 
-export function HeaderActions() {
+interface HeaderActionsProps {
+  onOpenModal: () => void;
+}
+
+export function HeaderActions({ onOpenModal }: HeaderActionsProps) {
   const router = useRouter();
 
-  // Inicialización perezosa (Lazy state initialization): lee el storage una sola vez al montar
+  // Lazy initialization para detectar si hay una sesión activa en localStorage o sessionStorage
   const [activeDashboardUrl] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
 
-    // Revisar localStorage
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key?.startsWith('auth_token_') && localStorage.getItem(key) === 'true') {
@@ -19,7 +22,6 @@ export function HeaderActions() {
         return `/dashboard/${token}`;
       }
     }
-    // Revisar sessionStorage
     for (let i = 0; i < sessionStorage.length; i++) {
       const key = sessionStorage.key(i);
       if (key?.startsWith('auth_token_') && sessionStorage.getItem(key) === 'true') {
@@ -31,7 +33,7 @@ export function HeaderActions() {
   });
 
   return (
-    <div className="flex items-center gap-2">
+    <div>
       {activeDashboardUrl ? (
         <button
           onClick={() => router.push(activeDashboardUrl)}
@@ -41,10 +43,7 @@ export function HeaderActions() {
         </button>
       ) : (
         <button
-          onClick={() => {
-            const modalTrigger = document.getElementById('open-auth-modal');
-            modalTrigger?.click();
-          }}
+          onClick={onOpenModal}
           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
         >
           Comerciantes

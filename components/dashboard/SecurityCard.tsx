@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Tenant } from '@/types';
-import { Shield, KeyRound, Loader2 } from 'lucide-react';
+import { Shield, KeyRound, Loader2, LogOut } from 'lucide-react';
 
 interface Props {
   tenant: Tenant;
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function SecurityCard({ tenant, onPinUpdated }: Props) {
+  const router = useRouter();
   const [isEditingPin, setIsEditingPin] = useState(false);
   const [newPin, setNewPin] = useState('');
   const [saving, setSaving] = useState(false);
@@ -39,11 +41,22 @@ export function SecurityCard({ tenant, onPinUpdated }: Props) {
     setSaving(false);
   };
 
+  const handleLogout = () => {
+    // Eliminar las llaves de acceso y el registro activo del navegador
+    localStorage.removeItem(`auth_token_${tenant.admin_token}`);
+    sessionStorage.removeItem(`auth_token_${tenant.admin_token}`);
+    localStorage.removeItem('current_tenant_token');
+    sessionStorage.removeItem('current_tenant_token');
+
+    // Redirigir al home público
+    router.push('/');
+  };
+
   return (
     <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
       <div className="flex justify-between items-center border-b border-slate-100 pb-3">
         <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-          <Shield className="w-3.5 h-3.5 text-[#007A55]" /> Seguridad
+          <Shield className="w-3.5 h-3.5 text-[#007A55]" /> Seguridad y Sesión
         </span>
         <button
           onClick={() => setIsEditingPin(!isEditingPin)}
@@ -54,19 +67,30 @@ export function SecurityCard({ tenant, onPinUpdated }: Props) {
       </div>
 
       {!isEditingPin ? (
-        <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/70 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-emerald-50 text-[#007A55] border border-emerald-100">
-              <KeyRound className="w-4 h-4" />
+        <div className="space-y-3">
+          <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/70 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-emerald-50 text-[#007A55] border border-emerald-100">
+                <KeyRound className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900">PIN de acceso activo</p>
+                <p className="text-[11px] text-slate-500">Protege la administración de tu local</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-bold text-slate-900">PIN de acceso activo</p>
-              <p className="text-[11px] text-slate-500">Protege la administración de tu local</p>
-            </div>
+            <span className="text-xs font-mono font-bold bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700">
+              {tenant.admin_pin || '----'}
+            </span>
           </div>
-          <span className="text-xs font-mono font-bold bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700">
-            {tenant.admin_pin || '----'}
-          </span>
+
+          {/* Botón de Cerrar Sesión Integrado */}
+          <button
+            onClick={handleLogout}
+            className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/60 font-bold py-2.5 rounded-xl text-xs transition-all shadow-2xs active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5 text-rose-600" />
+            <span>Cerrar Sesión en este Equipo</span>
+          </button>
         </div>
       ) : (
         <form onSubmit={handleUpdatePin} className="space-y-3 pt-1">
