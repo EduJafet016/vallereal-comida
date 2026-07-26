@@ -143,10 +143,16 @@ interface CartItemData {
   selectedVariant?: { name: string; price_override?: number };
   quantity: number;
 }
+// Definimos el contrato estricto (Discriminated Union) de las acciones del carrito
+type CartAction = 
+  | { type: 'UPDATE_QUANTITY'; payload: { index: number; quantity: number } }
+  | { type: 'CLEAR_CART' };
+  // Nota: Si idealmente ya tienes este tipo exportado en tu '../context/CartContext', 
+  // es mejor importarlo directamente arriba en lugar de redeclararlo.
 
 interface CartItemListProps {
   items: CartItemData[];
-  dispatch: React.Dispatch<any>; // React Dispatch tipado genérico
+  dispatch: React.Dispatch<CartAction>; // ¡Adiós any!
 }
 
 interface OrderFormProps {
