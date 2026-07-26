@@ -1,53 +1,49 @@
-# Valle Real Comida
+# 🍔 Valle Real - Comida Local
 
-Plataforma de pedidos directos para locales de comida en Valle Real. Los clientes ven el menú, arman su carrito y envían el pedido por WhatsApp sin comisiones. Los comerciantes gestionan su menú desde un panel privado.
+> Plataforma web de comercio local y delivery diseñada para conectar de forma directa a los comercios de Valle Real con sus clientes, eliminando comisiones intermediarias.
 
-## Requisitos
+![Status](https://img.shields.io/badge/status-en%20producci%C3%B3n-success)
+![Next.js](https://img.shields.io/badge/Next.js-16.2-black?logo=next.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue?logo=typescript)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38BDF8?logo=tailwind-css)
 
-- Node.js 20+
-- Cuenta de [Supabase](https://supabase.com) con las tablas del proyecto configuradas
-- Archivo `.env.local` con las variables de Supabase
+---
 
-## Variables de entorno
+## Demo en Vivo
+Puedes probar la aplicación en funcionamiento aquí:  
+🔗 **[vallereal-comida.vercel.app](https://vallereal-comida.vercel.app)** *(o el link de tu despliegue)*
 
-Crea un `.env.local` en la raíz del proyecto:
+---
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
-NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
-```
+##  Stack Tecnológico
 
-## Desarrollo
+Este proyecto fue desarrollado utilizando un stack moderno enfocado en rendimiento, optimización y experiencia de usuario:
 
-```bash
-npm install
-npm run dev
-```
+* **Frontend & Framework:** [Next.js](https://nextjs.org/) (App Router, Server Components y optimización con Turbopack).
+* **Tipado:** [TypeScript](https://www.typescriptlang.org/) para garantizar robustez y seguridad de tipos en toda la lógica de negocio y estados.
+* **Estilos y UI:** [Tailwind CSS](https://tailwindcss.com/) para un diseño responsivo, limpio y adaptado a dispositivos móviles (enfoque *Mobile-First*).
+* **Gestión de Estado:** React Context API (`CartContext`) para el manejo centralizado del carrito de compras y sesiones de usuario.
+* **Arquitectura PWA (Progressive Web App):** Configurado con `manifest.json` y metadatos nativos para permitir su instalación directa en dispositivos móviles como una aplicación de escritorio o app nativa.
+* **Control de Versiones y Despliegue:** Git, GitHub y despliegue continuo automatizado en [Vercel](https://vercel.com/).
 
-Abre [http://localhost:3000](http://localhost:3000).
+---
 
-## Scripts
+## Características Principales
 
-| Comando        | Descripción              |
-|----------------|--------------------------|
-| `npm run dev`  | Servidor de desarrollo   |
-| `npm run build`| Build de producción      |
-| `npm run start`| Servidor de producción   |
-| `npm run lint` | Revisión con ESLint      |
+* **Estructura Multi-rol / Multi-tenant:** Lógica diseñada para soportar tanto la vista del cliente final como paneles de administración y gestión para los diferentes negocios locales.
+* **Flujo de Pedidos Directo:** Sistema de carrito optimizado para armar órdenes y enrutarlas de manera eficiente.
+* **Experiencia Nativa (PWA):** Soporte completo para instalación en pantalla de inicio con iconos personalizados e interfaz adaptada a pantallas táctiles.
+* **Optimización de Activos:** Cero dependencias pesadas innecesarias, logrando tiempos de carga mínimos y alta puntuación en rendimiento web.
 
-## Rutas principales
+---
 
-| Ruta                    | Descripción                          |
-|-------------------------|--------------------------------------|
-| `/`                     | Directorio de locales                |
-| `/[slug]`               | Menú público de un local             |
-| `/registro`             | Registro de nuevo comercio           |
-| `/dashboard/[token]`    | Panel de administración del local    |
-| `/master-admin`         | Panel super admin (acceso restringido)|
+## 📂 Estructura del Proyecto
 
-## Stack
-
-- [Next.js 16](https://nextjs.org) (App Router)
-- React 19
-- Tailwind CSS 4
-- Supabase
+```text
+├── app/                  # Rutas, páginas y layouts (App Router de Next.js)
+│   ├── globals.css       # Estilos globales y configuración de Tailwind
+│   ├── layout.tsx        # Layout principal, metadatos PWA y proveedores
+│   └── page.php / tsx    # Vistas principales de la plataforma
+├── context/              # Proveedores de estado global (CartContext)
+├── public/               # Archivos estáticos, manifest.json e iconos PWA
+└── package.json          # Dependencias y scripts del proyecto
