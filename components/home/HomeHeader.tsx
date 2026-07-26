@@ -65,7 +65,7 @@ export function HomeHeader({ isInstalled, onInstallClick, onOpenAuth }: HomeHead
 
         <div className="pt-2">
           <h1 className="text-3xl font-black tracking-tight leading-none">
-            Valle Real Comida
+            Comida Valle Real
           </h1>
           <p className="text-xs text-emerald-100/80 font-medium mt-1.5">
             Pide directamente a tus locales favoritos sin comisiones
