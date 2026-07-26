@@ -103,7 +103,7 @@ export function GlobalIngredientsCard({ tenantId }: Props) {
     <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs space-y-4">
       <div className="border-b border-slate-100 pb-3">
         <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-          <Package className="w-3.5 h-3.5 text-[#007A55]" /> Inventario Global (Extras)
+          <Package className="w-3.5 h-3.5 text-[#007A55]" /> Ingredientes (seleccionables)
         </span>
       </div>
 
