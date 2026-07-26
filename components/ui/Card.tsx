@@ -1,4 +1,4 @@
-import { ReactNode } from 'lucide-react'; // o react normal
+import { ReactNode } from 'react';
 
 interface CardProps {
   children: ReactNode;
