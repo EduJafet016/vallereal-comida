@@ -14,23 +14,20 @@ interface EditProductModalProps {
 }
 
 export function EditProductModal({ product, tenant, onClose, onReload }: EditProductModalProps) {
-  // 1. Inicialización directa del estado
+  // Inicialización directa basada en el producto actual
   const [editProdName, setEditProdName] = useState(product?.name || '');
-  const [editProdPrice, setEditProdPrice] = useState(product?.price.toString() || '');
+  const [editProdPrice, setEditProdPrice] = useState(product?.price?.toString() || '');
   const [editProdDesc, setEditProdDesc] = useState(product?.description || '');
   const [savingProduct, setSavingProduct] = useState(false);
 
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
   const [globalIngredients, setGlobalIngredients] = useState<TenantIngredient[]>([]);
-  
-  // El loading inicia en true por defecto
   const [loadingModifiers, setLoadingModifiers] = useState(true);
-  
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
   const [newGroupName, setNewGroupName] = useState('');
-  const [newGroupRequired, setNewGroupRequired] = useState(true);
-  const [newGroupType, setNewGroupType] = useState<'single' | 'multiple'>('single');
+  const [newGroupMin, setNewGroupMin] = useState(0);
+  const [newGroupMax, setNewGroupMax] = useState(0);
   
   const [modifierInputs, setModifierInputs] = useState<Record<string, { name: string; priceDelta: string }>>({});
   const [editingModifierState, setEditingModifierState] = useState<Record<string, { name: string; priceDelta: string }>>({});
@@ -48,7 +45,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     onConfirm: () => {},
   });
 
-  // 2. Data Fetching encapsulado, seguro y con tipos congelados para evitar el error de TS
+  // Efecto enfocado exclusivamente a consultas externas (Supabase), sin llamadas a setState síncronas de props
   useEffect(() => {
     if (!product) return;
 
@@ -103,7 +100,6 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
 
   const handleAddGroup = async () => {
     if (!newGroupName.trim()) return;
-    const isSingle = newGroupType === 'single';
 
     const { data, error } = await supabase
       .from('modifier_groups')
@@ -111,9 +107,9 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
         product_id: product.id,
         tenant_id: tenant.id,
         name: newGroupName.trim(),
-        is_required: newGroupRequired,
-        min_selections: newGroupRequired ? 1 : 0,
-        max_selections: isSingle ? 1 : 5,
+        is_required: newGroupMin > 0,
+        min_selections: newGroupMin,
+        max_selections: newGroupMax,
       }])
       .select('*, modifiers(*)')
       .single();
@@ -121,8 +117,8 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     if (!error && data) {
       setModifierGroups([...modifierGroups, data]);
       setNewGroupName('');
-      setNewGroupRequired(true);
-      setNewGroupType('single');
+      setNewGroupMin(0);
+      setNewGroupMax(0);
     }
   };
 
@@ -138,6 +134,21 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
       delete copy[groupId];
       setEditingGroupState(copy);
     }
+  };
+
+  // Tipado estricto sin usar 'any' para cumplir con las reglas del linter
+  const handleUpdateGroupConfig = async (groupId: string, field: 'min_selections' | 'max_selections', value: number) => {
+    setModifierGroups((prev) => prev.map(g => {
+      if (g.id !== groupId) return g;
+      const updated = { ...g, [field]: value };
+      if (field === 'min_selections') updated.is_required = value > 0;
+      return updated;
+    }));
+
+    const updateData: { min_selections?: number; max_selections?: number; is_required?: boolean } = { [field]: value };
+    if (field === 'min_selections') updateData.is_required = value > 0;
+    
+    await supabase.from('modifier_groups').update(updateData).eq('id', groupId);
   };
 
   const executeDeleteGroup = async (groupId: string) => {
@@ -307,30 +318,26 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">Grupos de Opciones</h4>
               
               <div className="space-y-2 bg-emerald-50/50 p-3.5 rounded-2xl border border-emerald-100">
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    placeholder="Nombre del Grupo (ej. Ingredientes)"
-                    value={newGroupName}
-                    onChange={(e) => setNewGroupName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddGroup()}
-                    className="flex-1 p-2 bg-white border rounded-xl text-xs font-medium text-gray-900"
-                  />
-                  <select
-                    value={newGroupType}
-                    onChange={(e) => setNewGroupType(e.target.value as 'single' | 'multiple')}
-                    className="p-2 bg-white border rounded-xl text-xs font-medium text-gray-900 focus:outline-none"
-                  >
-                    <option value="single">Selección Única (Ej. 1)</option>
-                    <option value="multiple">Selección Múltiple</option>
-                  </select>
-                </div>
-                <div className="flex justify-between items-center pt-1">
-                  <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 bg-white px-3 py-1.5 border rounded-xl cursor-pointer">
-                    <input type="checkbox" checked={newGroupRequired} onChange={(e) => setNewGroupRequired(e.target.checked)} className="rounded accent-emerald-600" />
-                    Obligatorio
-                  </label>
-                  <button onClick={handleAddGroup} type="button" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1 shadow-sm">
+                <input
+                  type="text"
+                  placeholder="Nombre del Grupo (ej. Ingredientes extra)"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddGroup()}
+                  className="w-full p-2 bg-white border rounded-xl text-xs font-medium text-gray-900 focus:outline-emerald-500"
+                />
+                <div className="flex justify-between items-center pt-1 gap-2">
+                  <div className="flex gap-2 flex-1">
+                    <label className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-700 bg-white px-2 py-1.5 border rounded-xl">
+                      MÍN:
+                      <input type="number" min="0" value={newGroupMin} onChange={(e) => setNewGroupMin(parseInt(e.target.value) || 0)} className="w-10 outline-none text-emerald-700 font-bold bg-transparent text-center" />
+                    </label>
+                    <label className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-700 bg-white px-2 py-1.5 border rounded-xl">
+                      MÁX:
+                      <input type="number" min="0" value={newGroupMax === 0 ? '' : newGroupMax} placeholder="∞" onChange={(e) => setNewGroupMax(parseInt(e.target.value) || 0)} className="w-10 outline-none text-emerald-700 font-bold bg-transparent text-center" />
+                    </label>
+                  </div>
+                  <button onClick={handleAddGroup} type="button" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1 shadow-sm shrink-0">
                     <Plus className="w-3.5 h-3.5" /> Agregar
                   </button>
                 </div>
@@ -379,6 +386,34 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                           )}
                         </div>
 
+                        <div className="flex gap-3 bg-gray-50 p-2 rounded-xl border border-gray-100">
+                          <div className="flex-1">
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">
+                              Mín {group.min_selections === 0 ? '(Opcional)' : '(Obligatorio)'}
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={group.min_selections ?? 0}
+                              onChange={(e) => handleUpdateGroupConfig(group.id, 'min_selections', parseInt(e.target.value) || 0)}
+                              className="w-full p-1.5 border rounded-lg text-xs bg-white text-gray-900 font-medium focus:outline-emerald-500"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">
+                              Máx (0 = Sin límite)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={group.max_selections || ''}
+                              placeholder="∞"
+                              onChange={(e) => handleUpdateGroupConfig(group.id, 'max_selections', parseInt(e.target.value) || 0)}
+                              className="w-full p-1.5 border rounded-lg text-xs bg-white text-gray-900 font-medium focus:outline-emerald-500"
+                            />
+                          </div>
+                        </div>
+
                         <div className="space-y-2 pl-2">
                           {group.modifiers?.map((mod) => {
                             const isEditingThis = editingModifierState[mod.id] !== undefined;
@@ -421,7 +456,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                                 onFocus={() => setActiveDropdown(group.id)}
                                 onBlur={() => setTimeout(() => setActiveDropdown(null), 200)}
                                 onChange={(e) => setModifierInputs({ ...modifierInputs, [group.id]: { ...currentInput, name: e.target.value } })}
-                                className="w-full pl-8 p-2 border rounded-xl text-xs bg-white text-gray-900"
+                                className="w-full pl-8 p-2 border rounded-xl text-xs bg-white text-gray-900 focus:outline-emerald-500"
                               />
                               {activeDropdown === group.id && suggestedIngredients.length > 0 && (
                                 <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
@@ -433,7 +468,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                                 </div>
                               )}
                             </div>
-                            <input type="number" step="0.5" placeholder="Extra $" value={currentInput.priceDelta} onChange={(e) => setModifierInputs({ ...modifierInputs, [group.id]: { ...currentInput, priceDelta: e.target.value } })} className="w-20 p-2 border rounded-xl text-xs bg-white" />
+                            <input type="number" step="0.5" placeholder="Extra $" value={currentInput.priceDelta} onChange={(e) => setModifierInputs({ ...modifierInputs, [group.id]: { ...currentInput, priceDelta: e.target.value } })} className="w-20 p-2 border rounded-xl text-xs bg-white focus:outline-emerald-500" />
                             <button type="button" onClick={() => handleAddModifier(group.id)} className="bg-gray-900 text-white font-bold px-3 py-2 rounded-xl text-xs cursor-pointer">Agregar</button>
                           </div>
                         </div>
