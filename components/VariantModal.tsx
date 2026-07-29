@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Product, ModifierGroup, Modifier } from '@/types';
+import { Product, ModifierGroup, Modifier, ProductVariant } from '@/types';
 import { useCartDispatch } from '../context/CartContext';
 import { X, Check } from 'lucide-react';
 
@@ -19,27 +19,35 @@ export default function VariantModal({
   const dispatch = useCartDispatch();
   
   const [prevProduct, setPrevProduct] = useState<Product | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | undefined>(undefined);
   const [selectedModifiers, setSelectedModifiers] = useState<Record<string, Modifier[]>>({});
   const [notes, setNotes] = useState('');
 
   // Sincronización segura de estado por cambio de producto
   if (product !== prevProduct) {
     setPrevProduct(product);
-    if (product && product.modifier_groups) {
-      const initialSelections: Record<string, Modifier[]> = {};
-      product.modifier_groups.forEach((group) => {
-        if (group.is_required && group.modifiers && group.modifiers.length > 0) {
-          // Solo preselecciona si hay 1 opción y está disponible
-          const availableModifiers = group.modifiers.filter(m => m.is_available !== false);
-          initialSelections[group.id] = group.max_selections === 1 && availableModifiers.length > 0 
-            ? [availableModifiers[0]] 
-            : [];
-        } else {
-          initialSelections[group.id] = [];
-        }
-      });
-      setSelectedModifiers(initialSelections);
+    if (product) {
+      const variants = product.product_variants || [];
+      setSelectedVariant(variants.length > 0 ? variants[0] : undefined);
+
+      if (product.modifier_groups) {
+        const initialSelections: Record<string, Modifier[]> = {};
+        product.modifier_groups.forEach((group) => {
+          if (group.is_required && group.modifiers && group.modifiers.length > 0) {
+            const availableModifiers = group.modifiers.filter(m => m.is_available !== false);
+            initialSelections[group.id] = group.max_selections === 1 && availableModifiers.length > 0 
+              ? [availableModifiers[0]] 
+              : [];
+          } else {
+            initialSelections[group.id] = [];
+          }
+        });
+        setSelectedModifiers(initialSelections);
+      } else {
+        setSelectedModifiers({});
+      }
     } else {
+      setSelectedVariant(undefined);
       setSelectedModifiers({});
     }
     setNotes('');
@@ -47,10 +55,12 @@ export default function VariantModal({
 
   if (!isOpen || !product) return null;
 
+  const variants: ProductVariant[] = product.product_variants || [];
   const modifierGroups: ModifierGroup[] = product.modifier_groups || [];
 
-  // Validación robusta basada en min_selections y is_required
-  const isFormValid = modifierGroups.every((group) => {
+  const isVariantsValid = variants.length === 0 || selectedVariant !== undefined;
+  
+  const isModifiersValid = modifierGroups.every((group) => {
     const selectedCount = Array.isArray(selectedModifiers[group.id]) 
       ? selectedModifiers[group.id].length 
       : 0;
@@ -58,9 +68,11 @@ export default function VariantModal({
     return selectedCount >= minReq;
   });
 
-  const basePrice = product.price || 0;
+  const isFormValid = isVariantsValid && isModifiersValid;
+
+  // Precio base: Manejo seguro por si price_override es undefined
+  const basePrice = selectedVariant?.price_override ?? product.price ?? 0;
   
-  // Sumatoria blindada: Garantizamos que modList sea siempre un arreglo
   const modifiersTotalDelta = Object.values(selectedModifiers).reduce((sum, modList) => {
     const list = Array.isArray(modList) ? modList : [];
     return sum + list.reduce((subSum, mod) => subSum + (mod.price_delta || 0), 0);
@@ -105,37 +117,83 @@ export default function VariantModal({
       type: 'ADD_ITEM',
       payload: {
         product,
+        variant: selectedVariant, // <-- Corregido a 'variant' según tu contexto de carrito
         selectedModifiers: formattedModifiers,
         finalUnitPrice: finalPrice,
         notes: notes.trim() || undefined,
       },
     });
 
+    setSelectedVariant(undefined);
     setSelectedModifiers({});
     setNotes('');
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-end sm:items-center p-0 sm:p-4">
-      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-5 shadow-2xl animate-in slide-in-from-bottom duration-200 max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex justify-center items-end sm:items-center p-0 sm:p-4">
+      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl animate-in slide-in-from-bottom duration-200 max-h-[90vh] flex flex-col">
         
         <div className="flex justify-between items-start border-b pb-3 mb-4 shrink-0">
           <div>
-            <h3 className="text-lg font-bold text-gray-900">{product.name}</h3>
-            <p className="text-xs text-gray-500">Personaliza tu platillo</p>
+            <h3 className="text-lg font-black text-slate-900">{product.name}</h3>
+            <p className="text-xs text-slate-500 font-medium">Personaliza tu platillo</p>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-full text-gray-400 hover:bg-gray-100 transition-colors cursor-pointer"
+            className="p-1.5 rounded-full text-slate-400 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="space-y-5 mb-4 overflow-y-auto flex-1 pr-1">
-          {modifierGroups.length === 0 ? (
-            <div className="text-center py-6 text-xs text-gray-500">
+          
+          {variants.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">
+                  Elige una opción *
+                </h4>
+                <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">
+                  Obligatorio
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {variants.map((variant) => {
+                  const isSelected = selectedVariant?.id === variant.id;
+                  const variantPrice = variant.price_override ?? 0; // <-- Respaldo contra undefined
+                  return (
+                    <button
+                      key={variant.id}
+                      type="button"
+                      onClick={() => setSelectedVariant(variant)}
+                      className={`w-full flex items-center justify-between p-3 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-600/10'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
+                          isSelected ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 bg-white'
+                        }`}>
+                          {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        </div>
+                        <span className="font-bold text-sm text-slate-800">{variant.name}</span>
+                      </div>
+                      <span className="font-black text-sm text-emerald-600">
+                        ${variantPrice.toFixed(2)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {modifierGroups.length === 0 && variants.length === 0 ? (
+            <div className="text-center py-6 text-xs text-slate-500 font-medium">
               Este producto no cuenta con opciones adicionales configuradas. Puedes agregarlo directamente.
             </div>
           ) : (
@@ -147,11 +205,11 @@ export default function VariantModal({
               return (
                 <div key={group.id} className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">
                       {group.name} {group.max_selections && group.max_selections > 1 && `(Máx. ${group.max_selections})`}
                     </h4>
                     {group.is_required && (
-                      <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">
+                      <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">
                         Obligatorio
                       </span>
                     )}
@@ -160,7 +218,6 @@ export default function VariantModal({
                   <div className="space-y-2">
                     {modifiersList.map((modifier) => {
                       const isSelected = currentList.some((mod) => mod.id === modifier.id);
-                      // Evaluación estricta de disponibilidad
                       const isAvailable = modifier.is_available !== false;
 
                       return (
@@ -169,17 +226,17 @@ export default function VariantModal({
                           type="button"
                           disabled={!isAvailable}
                           onClick={() => handleSelectModifier(group, modifier)}
-                          className={`w-full flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
+                          className={`w-full flex items-center justify-between p-3 rounded-2xl border-2 text-left transition-all ${
                             !isAvailable
                               ? 'opacity-50 cursor-not-allowed bg-slate-50 border-slate-200'
                               : isSelected
-                                ? 'border-emerald-600 bg-emerald-50/60 ring-1 ring-emerald-600 cursor-pointer'
-                                : 'border-slate-200 hover:border-slate-300 cursor-pointer'
+                                ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-600/10 cursor-pointer'
+                                : 'border-slate-200 hover:border-slate-300 cursor-pointer bg-white'
                           }`}
                         >
                           <div className="flex items-center gap-3">
                             <div
-                              className={`w-5 h-5 ${isSingle ? 'rounded-full' : 'rounded-md'} border flex items-center justify-center shrink-0 ${
+                              className={`w-5 h-5 ${isSingle ? 'rounded-full' : 'rounded-lg'} border-2 flex items-center justify-center shrink-0 ${
                                 !isAvailable
                                   ? 'border-slate-300 bg-slate-200'
                                   : isSelected
@@ -189,11 +246,11 @@ export default function VariantModal({
                             >
                               {isSelected && <Check className={`w-3.5 h-3.5 ${!isAvailable ? 'text-slate-400' : 'stroke-[3]'}`} />}
                             </div>
-                            <span className={`font-medium text-sm ${!isAvailable ? 'text-slate-500 line-through' : 'text-slate-800'}`}>
+                            <span className={`font-bold text-sm ${!isAvailable ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
                               {modifier.name}
                             </span>
                           </div>
-                          <span className={`font-bold text-sm ${!isAvailable ? 'text-slate-400' : 'text-emerald-600'}`}>
+                          <span className={`font-black text-sm ${!isAvailable ? 'text-slate-400' : 'text-emerald-600'}`}>
                             {!isAvailable 
                               ? 'Agotado' 
                               : (modifier.price_delta || 0) > 0 
@@ -210,7 +267,7 @@ export default function VariantModal({
           )}
 
           <div className="pt-2">
-            <label className="text-xs font-semibold text-gray-600 block mb-1">
+            <label className="text-xs font-black text-slate-400 uppercase tracking-wider block mb-1.5">
               Instrucciones específicas (Opcional)
             </label>
             <input
@@ -218,24 +275,18 @@ export default function VariantModal({
               placeholder="Ej. Sin cebolla, aparte..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full px-3 py-2.5 text-sm border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 bg-white"
+              className="w-full px-4 py-3 text-sm font-bold border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 text-slate-900 bg-slate-50"
             />
           </div>
         </div>
 
-        <div className="pt-2 border-t shrink-0">
+        <div className="pt-3 border-t shrink-0">
           <button
-            disabled={!isFormValid && modifierGroups.length > 0}
-            onClick={modifierGroups.length === 0 ? () => {
-              dispatch({
-                type: 'ADD_ITEM',
-                payload: { product, finalUnitPrice: basePrice, notes: notes.trim() || undefined }
-              });
-              onClose();
-            } : handleConfirm}
-            className="w-full bg-emerald-600 disabled:bg-slate-300 disabled:text-slate-500 text-white py-3 rounded-xl font-bold text-sm shadow-md transition-all active:scale-[0.98] cursor-pointer"
+            disabled={!isFormValid}
+            onClick={handleConfirm}
+            className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-400 text-white py-4 px-6 rounded-2xl font-black text-sm shadow-xl shadow-emerald-600/25 transition-all active:scale-[0.99] cursor-pointer"
           >
-            {isFormValid || modifierGroups.length === 0
+            {isFormValid
               ? `Agregar · $${finalPrice.toFixed(2)}`
               : 'Selecciona los campos obligatorios'}
           </button>

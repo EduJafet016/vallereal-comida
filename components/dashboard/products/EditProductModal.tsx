@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Product, Tenant, ModifierGroup, Modifier, TenantIngredient } from '@/types';
+import { Product, Tenant, ModifierGroup, Modifier, TenantIngredient, ProductVariant } from '@/types';
 import { X, Layers, Plus, Pencil, Trash2, Check, Search, Link as LinkIcon } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 
@@ -19,8 +19,14 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
   const [editProdDesc, setEditProdDesc] = useState(product?.description || '');
   const [savingProduct, setSavingProduct] = useState(false);
 
+  // Estados para Variantes (Tamaños/Porciones)
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [newVariantName, setNewVariantName] = useState('');
+  const [newVariantPrice, setNewVariantPrice] = useState('');
+  const [editingVariantState, setEditingVariantState] = useState<Record<string, { name: string; price: string }>>({});
+
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
-  const [tenantGroups, setTenantGroups] = useState<{ id: string, name: string }[]>([]); // Todos los grupos globales del restaurante
+  const [tenantGroups, setTenantGroups] = useState<{ id: string, name: string }[]>([]); 
   const [selectedGlobalGroupId, setSelectedGlobalGroupId] = useState('');
   
   const [globalIngredients, setGlobalIngredients] = useState<TenantIngredient[]>([]);
@@ -47,17 +53,21 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     onConfirm: () => {},
   });
 
-  // --- LÓGICA: Sincronización Segura (Derivación durante el render) ---
+  // --- LÓGICA: Sincronización Segura ---
   const [prevProductId, setPrevProductId] = useState<string | undefined>(product?.id);
 
   if (product && product.id !== prevProductId) {
-    // Si el ID cambió, actualizamos los estados INMEDIATAMENTE antes de que se pinte en pantalla
     setPrevProductId(product.id);
     
     setEditProdName(product.name || '');
     setEditProdPrice(product.price?.toString() || '');
     setEditProdDesc(product.description || '');
     
+    setVariants(product.product_variants || []);
+    setNewVariantName('');
+    setNewVariantPrice('');
+    setEditingVariantState({});
+
     setModifierInputs({});
     setEditingModifierState({});
     setEditingGroupState({});
@@ -68,7 +78,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     setSelectedGlobalGroupId('');
   }
 
-  // Efecto enfocado exclusivamente a consultas externas (Supabase)
+  // Efecto enfocado a consultas externas (Supabase)
   useEffect(() => {
     if (!product) return;
 
@@ -96,13 +106,23 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
         .select('*')
         .eq('tenant_id', tenantId);
 
-      const [linkedRes, allGroupsRes, ingredientsRes] = await Promise.all([linkedGroupsPromise, allGroupsPromise, ingredientsPromise]);
+      // 4. Obtener variantes del producto
+      const variantsPromise = supabase
+        .from('product_variants')
+        .select('*')
+        .eq('product_id', productId)
+        .order('created_at', { ascending: true });
+
+      const [linkedRes, allGroupsRes, ingredientsRes, variantsRes] = await Promise.all([
+        linkedGroupsPromise, 
+        allGroupsPromise, 
+        ingredientsPromise,
+        variantsPromise
+      ]);
 
       if (isMounted) {
         if (!linkedRes.error && linkedRes.data) {
-          // Extraemos y aplanamos la data de forma estrictamente tipada
           const extractedGroups: ModifierGroup[] = [];
-          
           linkedRes.data.forEach((row) => {
             const mg = row.modifier_groups;
             if (Array.isArray(mg)) {
@@ -111,16 +131,6 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
               extractedGroups.push(mg as unknown as ModifierGroup);
             }
           });
-
-          // Ordenamos extendiendo el tipo temporalmente para que TS acepte la columna de Supabase
-          extractedGroups.sort((a, b) => {
-            const groupA = a as ModifierGroup & { created_at?: string };
-            const groupB = b as ModifierGroup & { created_at?: string };
-            const timeA = groupA.created_at ? new Date(groupA.created_at).getTime() : 0;
-            const timeB = groupB.created_at ? new Date(groupB.created_at).getTime() : 0;
-            return timeA - timeB;
-          });
-          
           setModifierGroups(extractedGroups);
         }
         
@@ -129,6 +139,9 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
         }
         if (!ingredientsRes.error && ingredientsRes.data) {
           setGlobalIngredients(ingredientsRes.data);
+        }
+        if (!variantsRes.error && variantsRes.data) {
+          setVariants(variantsRes.data);
         }
         setLoadingModifiers(false);
       }
@@ -159,11 +172,71 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     setSavingProduct(false);
   };
 
+  // --- GESTIÓN DE VARIANTES (Tamaños / Porciones) ---
+  const handleAddVariant = async () => {
+    if (!newVariantName.trim() || !newVariantPrice.trim()) return;
+
+    const { data, error } = await supabase
+      .from('product_variants')
+      .insert([{
+        product_id: product.id,
+        tenant_id: tenant.id,
+        name: newVariantName.trim(),
+        price_override: parseFloat(newVariantPrice) || 0,
+      }])
+      .select()
+      .single();
+
+    if (!error && data) {
+      setVariants([...variants, data]);
+      setNewVariantName('');
+      setNewVariantPrice('');
+    } else {
+      alert("Error al agregar la variante.");
+    }
+  };
+
+  const handleUpdateVariant = async (variantId: string) => {
+    const state = editingVariantState[variantId];
+    if (!state || !state.name.trim()) return;
+
+    const trimmedName = state.name.trim();
+    const priceOverride = parseFloat(state.price) || 0;
+
+    const { error } = await supabase
+      .from('product_variants')
+      .update({ name: trimmedName, price_override: priceOverride })
+      .eq('id', variantId);
+
+    if (!error) {
+      setVariants(variants.map(v => v.id === variantId ? { ...v, name: trimmedName, price_override: priceOverride } : v));
+      const copy = { ...editingVariantState };
+      delete copy[variantId];
+      setEditingVariantState(copy);
+    }
+  };
+
+  const executeDeleteVariant = async (variantId: string) => {
+    const { error } = await supabase.from('product_variants').delete().eq('id', variantId);
+    if (!error) {
+      setVariants(variants.filter(v => v.id !== variantId));
+    }
+    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const handleDeleteVariant = (variantId: string, variantName: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: '¿Eliminar opción?',
+      message: `¿Estás seguro de eliminar la opción "${variantName}"?`,
+      onConfirm: () => executeDeleteVariant(variantId),
+    });
+  };
+
   // VINCULAR un grupo existente al platillo
   const handleLinkGroup = async () => {
     if (!selectedGlobalGroupId) return;
     
-    // Validar si ya está vinculado
     if (modifierGroups.some(g => g.id === selectedGlobalGroupId)) {
       alert("Este grupo ya está vinculado al platillo.");
       return;
@@ -176,7 +249,6 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     }]);
 
     if (!linkError) {
-      // Traer los datos completos del grupo recién vinculado para mostrarlo en pantalla
       const { data: groupData } = await supabase
         .from('modifier_groups')
         .select('*, modifiers(*)')
@@ -196,7 +268,6 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
   const handleAddGroup = async () => {
     if (!newGroupName.trim()) return;
 
-    // 1. Insertamos como grupo global (sin product_id)
     const { data: newGroup, error: groupError } = await supabase
       .from('modifier_groups')
       .insert([{
@@ -210,7 +281,6 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
       .single();
 
     if (!groupError && newGroup) {
-      // 2. Lo vinculamos inmediatamente al platillo
       await supabase.from('product_modifier_groups').insert([{
         product_id: product.id,
         modifier_group_id: newGroup.id,
@@ -254,7 +324,6 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     await supabase.from('modifier_groups').update(updateData).eq('id', groupId);
   };
 
-  // DESVINCULAR (Ya no eliminamos el grupo, solo quitamos la relación con este producto)
   const executeUnlinkGroup = async (groupId: string) => {
     const { error } = await supabase
       .from('product_modifier_groups')
@@ -405,7 +474,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                   type="number"
                   step="0.5"
                   required
-                  placeholder="Precio ($)"
+                  placeholder="Precio Base ($)"
                   value={editProdPrice}
                   onChange={(e) => setEditProdPrice(e.target.value)}
                   className="w-full p-2.5 bg-white border rounded-xl text-xs text-gray-900 font-medium placeholder-gray-400 focus:outline-emerald-500"
@@ -427,6 +496,93 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
               </button>
             </form>
 
+            {/* ======================================================== */}
+            {/* SECCIÓN DE VARIANTES / TAMAÑOS / OPCIONES DE PRECIO       */}
+            {/* ======================================================== */}
+            <div className="space-y-3 pt-2 border-t">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">Variantes y Tamaños (Opcional)</h4>
+              <p className="text-[11px] text-gray-500 leading-relaxed">
+                Si este platillo se vende por tamaños u opciones con diferente precio (ej. &quot;Orden de 3&quot;, &quot;Orden de 5&quot;), agrégalas aquí. Si dejas esto vacío, el platillo usará el precio base general.
+              </p>
+
+              <div className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Nombre (Ej. Orden de 5)"
+                    value={newVariantName}
+                    onChange={(e) => setNewVariantName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddVariant()}
+                    className="flex-1 p-2 bg-white border rounded-xl text-xs font-medium text-gray-900 focus:outline-emerald-500"
+                  />
+                  <input
+                    type="number"
+                    step="0.5"
+                    placeholder="Precio ($)"
+                    value={newVariantPrice}
+                    onChange={(e) => setNewVariantPrice(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddVariant()}
+                    className="w-24 p-2 bg-white border rounded-xl text-xs font-medium text-gray-900 focus:outline-emerald-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddVariant}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs cursor-pointer flex items-center gap-1 shadow-sm shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Agregar
+                  </button>
+                </div>
+              </div>
+
+              {variants.length > 0 && (
+                <div className="space-y-2">
+                  {variants.map((variant) => {
+                    const isEditing = editingVariantState[variant.id] !== undefined;
+                    const vState = editingVariantState[variant.id] || { name: variant.name, price: (variant.price_override ?? 0).toString() };
+                    const variantPrice = variant.price_override ?? 0;
+
+                    return (
+                      <div key={variant.id} className="flex justify-between items-center bg-white p-2.5 rounded-xl border text-xs gap-2 shadow-2xs">
+                        {isEditing ? (
+                          <div className="flex flex-1 gap-2 items-center">
+                            <input
+                              type="text"
+                              value={vState.name}
+                              onChange={(e) => setEditingVariantState({ ...editingVariantState, [variant.id]: { ...vState, name: e.target.value } })}
+                              className="flex-1 p-1.5 border rounded-lg text-xs font-medium text-gray-900"
+                            />
+                            <input
+                              type="number"
+                              step="0.5"
+                              value={vState.price}
+                              onChange={(e) => setEditingVariantState({ ...editingVariantState, [variant.id]: { ...vState, price: e.target.value } })}
+                              className="w-20 p-1.5 border rounded-lg text-xs font-medium text-gray-900"
+                            />
+                            <button onClick={() => handleUpdateVariant(variant.id)} className="p-1.5 bg-emerald-600 text-white rounded-lg cursor-pointer"><Check className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => { const copy = { ...editingVariantState }; delete copy[variant.id]; setEditingVariantState(copy); }} className="p-1.5 text-gray-400 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex-1 font-bold text-gray-800">
+                              {variant.name}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="font-black text-emerald-600">${variantPrice.toFixed(2)}</span>
+                              <button onClick={() => setEditingVariantState({ ...editingVariantState, [variant.id]: { name: variant.name, price: variantPrice.toString() } })} className="text-gray-400 hover:text-emerald-600 cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => handleDeleteVariant(variant.id, variant.name)} className="text-gray-400 hover:text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* ======================================================== */}
+            {/* SECCIÓN DE GRUPOS DE OPCIONES GLOBALES (Modificadores)   */}
+            {/* ======================================================== */}
             <div className="space-y-3 pt-2 border-t">
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">Grupos de Opciones Globales</h4>
               
@@ -506,7 +662,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                       : [];
 
                     return (
-                      <div key={group.id} className="p-3.5 bg-white border rounded-2xl shadow-sm space-y-3">
+                      <div key={group.id} className="p-3.5 bg-white border rounded-2xl shadow-sm space-y-3 relative">
                         <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500 rounded-l-2xl"></div>
                         
                         <div className="flex justify-between items-center border-b pb-2 gap-2 pl-2">
