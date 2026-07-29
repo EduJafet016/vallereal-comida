@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Product, Tenant, ModifierGroup, Modifier, TenantIngredient } from '@/types';
-import { X, Layers, Plus, Pencil, Trash2, Check, Search } from 'lucide-react';
+import { X, Layers, Plus, Pencil, Trash2, Check, Search, Link as LinkIcon } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 
 interface EditProductModalProps {
@@ -14,13 +14,15 @@ interface EditProductModalProps {
 }
 
 export function EditProductModal({ product, tenant, onClose, onReload }: EditProductModalProps) {
-  // Inicialización directa basada en el producto actual
   const [editProdName, setEditProdName] = useState(product?.name || '');
   const [editProdPrice, setEditProdPrice] = useState(product?.price?.toString() || '');
   const [editProdDesc, setEditProdDesc] = useState(product?.description || '');
   const [savingProduct, setSavingProduct] = useState(false);
 
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
+  const [tenantGroups, setTenantGroups] = useState<{ id: string, name: string }[]>([]); // Todos los grupos globales del restaurante
+  const [selectedGlobalGroupId, setSelectedGlobalGroupId] = useState('');
+  
   const [globalIngredients, setGlobalIngredients] = useState<TenantIngredient[]>([]);
   const [loadingModifiers, setLoadingModifiers] = useState(true);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
@@ -45,7 +47,28 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     onConfirm: () => {},
   });
 
-  // Efecto enfocado exclusivamente a consultas externas (Supabase), sin llamadas a setState síncronas de props
+  // --- LÓGICA: Sincronización Segura (Derivación durante el render) ---
+  const [prevProductId, setPrevProductId] = useState<string | undefined>(product?.id);
+
+  if (product && product.id !== prevProductId) {
+    // Si el ID cambió, actualizamos los estados INMEDIATAMENTE antes de que se pinte en pantalla
+    setPrevProductId(product.id);
+    
+    setEditProdName(product.name || '');
+    setEditProdPrice(product.price?.toString() || '');
+    setEditProdDesc(product.description || '');
+    
+    setModifierInputs({});
+    setEditingModifierState({});
+    setEditingGroupState({});
+    setActiveDropdown(null);
+    setNewGroupName('');
+    setNewGroupMin(0);
+    setNewGroupMax(0);
+    setSelectedGlobalGroupId('');
+  }
+
+  // Efecto enfocado exclusivamente a consultas externas (Supabase)
   useEffect(() => {
     if (!product) return;
 
@@ -54,21 +77,59 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     let isMounted = true;
 
     async function loadData() {
-      const [groupsRes, ingredientsRes] = await Promise.all([
-        supabase
-          .from('modifier_groups')
-          .select('*, modifiers(*)')
-          .eq('product_id', productId)
-          .order('created_at', { ascending: true }),
-        supabase
-          .from('tenant_ingredients')
-          .select('*')
-          .eq('tenant_id', tenantId)
-      ]);
+      // 1. Obtener grupos VINCULADOS mediante la tabla puente
+      const linkedGroupsPromise = supabase
+        .from('product_modifier_groups')
+        .select('modifier_groups(*, modifiers(*))')
+        .eq('product_id', productId);
+
+      // 2. Obtener TODOS los grupos del tenant para el dropdown de "Vincular"
+      const allGroupsPromise = supabase
+        .from('modifier_groups')
+        .select('id, name')
+        .eq('tenant_id', tenantId)
+        .order('name');
+
+      // 3. Obtener ingredientes globales
+      const ingredientsPromise = supabase
+        .from('tenant_ingredients')
+        .select('*')
+        .eq('tenant_id', tenantId);
+
+      const [linkedRes, allGroupsRes, ingredientsRes] = await Promise.all([linkedGroupsPromise, allGroupsPromise, ingredientsPromise]);
 
       if (isMounted) {
-        if (!groupsRes.error && groupsRes.data) setModifierGroups(groupsRes.data);
-        if (!ingredientsRes.error && ingredientsRes.data) setGlobalIngredients(ingredientsRes.data);
+        if (!linkedRes.error && linkedRes.data) {
+          // Extraemos y aplanamos la data de forma estrictamente tipada
+          const extractedGroups: ModifierGroup[] = [];
+          
+          linkedRes.data.forEach((row) => {
+            const mg = row.modifier_groups;
+            if (Array.isArray(mg)) {
+              extractedGroups.push(...(mg as unknown as ModifierGroup[]));
+            } else if (mg) {
+              extractedGroups.push(mg as unknown as ModifierGroup);
+            }
+          });
+
+          // Ordenamos extendiendo el tipo temporalmente para que TS acepte la columna de Supabase
+          extractedGroups.sort((a, b) => {
+            const groupA = a as ModifierGroup & { created_at?: string };
+            const groupB = b as ModifierGroup & { created_at?: string };
+            const timeA = groupA.created_at ? new Date(groupA.created_at).getTime() : 0;
+            const timeB = groupB.created_at ? new Date(groupB.created_at).getTime() : 0;
+            return timeA - timeB;
+          });
+          
+          setModifierGroups(extractedGroups);
+        }
+        
+        if (!allGroupsRes.error && allGroupsRes.data) {
+          setTenantGroups(allGroupsRes.data);
+        }
+        if (!ingredientsRes.error && ingredientsRes.data) {
+          setGlobalIngredients(ingredientsRes.data);
+        }
         setLoadingModifiers(false);
       }
     }
@@ -98,13 +159,47 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     setSavingProduct(false);
   };
 
+  // VINCULAR un grupo existente al platillo
+  const handleLinkGroup = async () => {
+    if (!selectedGlobalGroupId) return;
+    
+    // Validar si ya está vinculado
+    if (modifierGroups.some(g => g.id === selectedGlobalGroupId)) {
+      alert("Este grupo ya está vinculado al platillo.");
+      return;
+    }
+
+    const { error: linkError } = await supabase.from('product_modifier_groups').insert([{
+      product_id: product.id,
+      modifier_group_id: selectedGlobalGroupId,
+      tenant_id: tenant.id
+    }]);
+
+    if (!linkError) {
+      // Traer los datos completos del grupo recién vinculado para mostrarlo en pantalla
+      const { data: groupData } = await supabase
+        .from('modifier_groups')
+        .select('*, modifiers(*)')
+        .eq('id', selectedGlobalGroupId)
+        .single();
+      
+      if (groupData) {
+        setModifierGroups([...modifierGroups, groupData as ModifierGroup]);
+        setSelectedGlobalGroupId('');
+      }
+    } else {
+      alert("Hubo un error al vincular el grupo.");
+    }
+  };
+
+  // CREAR y vincular un grupo nuevo
   const handleAddGroup = async () => {
     if (!newGroupName.trim()) return;
 
-    const { data, error } = await supabase
+    // 1. Insertamos como grupo global (sin product_id)
+    const { data: newGroup, error: groupError } = await supabase
       .from('modifier_groups')
       .insert([{
-        product_id: product.id,
         tenant_id: tenant.id,
         name: newGroupName.trim(),
         is_required: newGroupMin > 0,
@@ -114,8 +209,16 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
       .select('*, modifiers(*)')
       .single();
 
-    if (!error && data) {
-      setModifierGroups([...modifierGroups, data]);
+    if (!groupError && newGroup) {
+      // 2. Lo vinculamos inmediatamente al platillo
+      await supabase.from('product_modifier_groups').insert([{
+        product_id: product.id,
+        modifier_group_id: newGroup.id,
+        tenant_id: tenant.id
+      }]);
+
+      setModifierGroups([...modifierGroups, newGroup as ModifierGroup]);
+      setTenantGroups([...tenantGroups, { id: newGroup.id, name: newGroup.name }]);
       setNewGroupName('');
       setNewGroupMin(0);
       setNewGroupMax(0);
@@ -130,13 +233,13 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     const { error } = await supabase.from('modifier_groups').update({ name: trimmedName }).eq('id', groupId);
     if (!error) {
       setModifierGroups(modifierGroups.map((g) => g.id === groupId ? { ...g, name: trimmedName } : g));
+      setTenantGroups(tenantGroups.map((g) => g.id === groupId ? { ...g, name: trimmedName } : g));
       const copy = { ...editingGroupState };
       delete copy[groupId];
       setEditingGroupState(copy);
     }
   };
 
-  // Tipado estricto sin usar 'any' para cumplir con las reglas del linter
   const handleUpdateGroupConfig = async (groupId: string, field: 'min_selections' | 'max_selections', value: number) => {
     setModifierGroups((prev) => prev.map(g => {
       if (g.id !== groupId) return g;
@@ -151,18 +254,25 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     await supabase.from('modifier_groups').update(updateData).eq('id', groupId);
   };
 
-  const executeDeleteGroup = async (groupId: string) => {
-    const { error } = await supabase.from('modifier_groups').delete().eq('id', groupId);
-    if (!error) setModifierGroups(modifierGroups.filter((g) => g.id !== groupId));
+  // DESVINCULAR (Ya no eliminamos el grupo, solo quitamos la relación con este producto)
+  const executeUnlinkGroup = async (groupId: string) => {
+    const { error } = await supabase
+      .from('product_modifier_groups')
+      .delete()
+      .match({ product_id: product.id, modifier_group_id: groupId });
+
+    if (!error) {
+      setModifierGroups(modifierGroups.filter((g) => g.id !== groupId));
+    }
     setConfirmModal((prev) => ({ ...prev, isOpen: false }));
   };
 
-  const handleDeleteGroup = (groupId: string, groupName: string) => {
+  const handleUnlinkGroup = (groupId: string, groupName: string) => {
     setConfirmModal({
       isOpen: true,
-      title: '¿Eliminar grupo?',
-      message: `¿Eliminar el grupo "${groupName}" y todas sus opciones?`,
-      onConfirm: () => executeDeleteGroup(groupId),
+      title: '¿Quitar del platillo?',
+      message: `¿Desvincular el grupo "${groupName}" de este platillo? El grupo seguirá existiendo en otros platillos.`,
+      onConfirm: () => executeUnlinkGroup(groupId),
     });
   };
 
@@ -245,7 +355,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     setConfirmModal({
       isOpen: true,
       title: '¿Eliminar opción?',
-      message: `¿Estás seguro de eliminar la opción "${modName}"?`,
+      message: `¿Estás seguro de eliminar la opción "${modName}" de este grupo? Esta acción afectará a TODOS los platillos que usen este grupo.`,
       onConfirm: () => executeDeleteModifier(groupId, modifierId),
     });
   };
@@ -280,30 +390,33 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
           </div>
 
           <div className="overflow-y-auto flex-1 space-y-5 pr-1 pb-10">
-            <form onSubmit={handleSaveProductEdit} className="space-y-3 bg-gray-50 p-4 rounded-2xl border">
+            <form onSubmit={handleSaveProductEdit} className="space-y-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">Información General</h4>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <input
                   type="text"
                   required
+                  placeholder="Nombre del platillo"
                   value={editProdName}
                   onChange={(e) => setEditProdName(e.target.value)}
-                  className="w-full p-2.5 bg-white border rounded-xl text-xs text-gray-900 font-medium sm:col-span-2"
+                  className="w-full p-2.5 bg-white border rounded-xl text-xs text-gray-900 font-medium sm:col-span-2 placeholder-gray-400 focus:outline-emerald-500"
                 />
                 <input
                   type="number"
                   step="0.5"
                   required
+                  placeholder="Precio ($)"
                   value={editProdPrice}
                   onChange={(e) => setEditProdPrice(e.target.value)}
-                  className="w-full p-2.5 bg-white border rounded-xl text-xs text-gray-900 font-medium"
+                  className="w-full p-2.5 bg-white border rounded-xl text-xs text-gray-900 font-medium placeholder-gray-400 focus:outline-emerald-500"
                 />
               </div>
               <textarea
                 rows={2}
+                placeholder="Descripción del platillo (opcional)"
                 value={editProdDesc}
                 onChange={(e) => setEditProdDesc(e.target.value)}
-                className="w-full p-2.5 bg-white border rounded-xl text-xs text-gray-900 font-medium"
+                className="w-full p-2.5 bg-white border rounded-xl text-xs text-gray-900 font-medium placeholder-gray-400 focus:outline-emerald-500"
               />
               <button
                 type="submit"
@@ -315,38 +428,73 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
             </form>
 
             <div className="space-y-3 pt-2 border-t">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">Grupos de Opciones</h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">Grupos de Opciones Globales</h4>
               
-              <div className="space-y-2 bg-emerald-50/50 p-3.5 rounded-2xl border border-emerald-100">
-                <input
-                  type="text"
-                  placeholder="Nombre del Grupo (ej. Ingredientes extra)"
-                  value={newGroupName}
-                  onChange={(e) => setNewGroupName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddGroup()}
-                  className="w-full p-2 bg-white border rounded-xl text-xs font-medium text-gray-900 focus:outline-emerald-500"
-                />
-                <div className="flex justify-between items-center pt-1 gap-2">
-                  <div className="flex gap-2 flex-1">
-                    <label className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-700 bg-white px-2 py-1.5 border rounded-xl">
-                      MÍN:
-                      <input type="number" min="0" value={newGroupMin} onChange={(e) => setNewGroupMin(parseInt(e.target.value) || 0)} className="w-10 outline-none text-emerald-700 font-bold bg-transparent text-center" />
-                    </label>
-                    <label className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-700 bg-white px-2 py-1.5 border rounded-xl">
-                      MÁX:
-                      <input type="number" min="0" value={newGroupMax === 0 ? '' : newGroupMax} placeholder="∞" onChange={(e) => setNewGroupMax(parseInt(e.target.value) || 0)} className="w-10 outline-none text-emerald-700 font-bold bg-transparent text-center" />
-                    </label>
-                  </div>
-                  <button onClick={handleAddGroup} type="button" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1 shadow-sm shrink-0">
-                    <Plus className="w-3.5 h-3.5" /> Agregar
+              <div className="space-y-4 bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100">
+                
+                {/* 1. SECCIÓN VINCULAR GRUPO EXISTENTE */}
+                <div className="flex gap-2">
+                  <select
+                    value={selectedGlobalGroupId}
+                    onChange={(e) => setSelectedGlobalGroupId(e.target.value)}
+                    className="flex-1 p-2 bg-white border rounded-xl text-xs font-medium text-gray-900 focus:outline-emerald-500 cursor-pointer"
+                  >
+                    <option value="">-- Vincular grupo existente (Ej. Proteínas) --</option>
+                    {tenantGroups.map(g => (
+                      <option key={`opt-${g.id}`} value={g.id} disabled={modifierGroups.some(mg => mg.id === g.id)}>
+                        {g.name} {modifierGroups.some(mg => mg.id === g.id) ? '(Ya vinculado)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <button 
+                    type="button" 
+                    onClick={handleLinkGroup}
+                    disabled={!selectedGlobalGroupId}
+                    className="bg-gray-900 hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold px-3 py-2 rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1 shadow-sm shrink-0"
+                  >
+                    <LinkIcon className="w-3.5 h-3.5" /> Vincular
                   </button>
                 </div>
+
+                <div className="flex items-center gap-3 opacity-60">
+                  <div className="h-px bg-emerald-700 flex-1"></div>
+                  <span className="text-[9px] text-emerald-800 font-black tracking-widest uppercase">O Crear Nuevo</span>
+                  <div className="h-px bg-emerald-700 flex-1"></div>
+                </div>
+
+                {/* 2. SECCIÓN CREAR GRUPO NUEVO */}
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Nombre del Grupo Nuevo (Ej. Tipos de Salsa)"
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddGroup()}
+                    className="w-full p-2 bg-white border rounded-xl text-xs font-medium text-gray-900 focus:outline-emerald-500"
+                  />
+                  <div className="flex justify-between items-center pt-1 gap-2">
+                    <div className="flex gap-2 flex-1">
+                      <label className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-700 bg-white px-2 py-1.5 border rounded-xl">
+                        MÍN:
+                        <input type="number" min="0" value={newGroupMin} onChange={(e) => setNewGroupMin(parseInt(e.target.value) || 0)} className="w-10 outline-none text-emerald-700 font-bold bg-transparent text-center" />
+                      </label>
+                      <label className="flex items-center gap-1.5 text-[10px] font-semibold text-gray-700 bg-white px-2 py-1.5 border rounded-xl">
+                        MÁX:
+                        <input type="number" min="0" value={newGroupMax === 0 ? '' : newGroupMax} placeholder="∞" onChange={(e) => setNewGroupMax(parseInt(e.target.value) || 0)} className="w-10 outline-none text-emerald-700 font-bold bg-transparent text-center" />
+                      </label>
+                    </div>
+                    <button onClick={handleAddGroup} type="button" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition-all cursor-pointer flex items-center gap-1 shadow-sm shrink-0">
+                      <Plus className="w-3.5 h-3.5" /> Agregar
+                    </button>
+                  </div>
+                </div>
+
               </div>
 
               {loadingModifiers ? (
                 <p className="text-xs text-gray-400 text-center py-4">Cargando opciones...</p>
               ) : modifierGroups.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-4 italic">No hay grupos configurados.</p>
+                <p className="text-xs text-gray-400 text-center py-4 italic">No hay grupos configurados en este platillo.</p>
               ) : (
                 <div className="space-y-4">
                   {modifierGroups.map((group) => {
@@ -359,7 +507,9 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
 
                     return (
                       <div key={group.id} className="p-3.5 bg-white border rounded-2xl shadow-sm space-y-3">
-                        <div className="flex justify-between items-center border-b pb-2 gap-2">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500 rounded-l-2xl"></div>
+                        
+                        <div className="flex justify-between items-center border-b pb-2 gap-2 pl-2">
                           {isEditingGroup ? (
                             <div className="flex-1 flex gap-2 items-center">
                               <input
@@ -382,11 +532,11 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                             </div>
                           )}
                           {!isEditingGroup && (
-                            <button onClick={() => handleDeleteGroup(group.id, group.name)} className="text-red-500 hover:text-red-700 p-1 text-xs font-semibold cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => handleUnlinkGroup(group.id, group.name)} title="Quitar de este platillo" className="text-red-400 hover:text-red-600 p-1 text-xs font-semibold cursor-pointer transition-colors"><Trash2 className="w-4 h-4" /></button>
                           )}
                         </div>
 
-                        <div className="flex gap-3 bg-gray-50 p-2 rounded-xl border border-gray-100">
+                        <div className="flex gap-3 bg-gray-50 p-2 rounded-xl border border-gray-100 ml-2">
                           <div className="flex-1">
                             <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">
                               Mín {group.min_selections === 0 ? '(Opcional)' : '(Obligatorio)'}
@@ -414,7 +564,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                           </div>
                         </div>
 
-                        <div className="space-y-2 pl-2">
+                        <div className="space-y-2 pl-3">
                           {group.modifiers?.map((mod) => {
                             const isEditingThis = editingModifierState[mod.id] !== undefined;
                             const modState = editingModifierState[mod.id] || { name: mod.name, priceDelta: mod.price_delta.toString() };
@@ -437,8 +587,8 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                                     </div>
                                     <div className="flex items-center gap-3">
                                       <span className={`font-bold ${isGlobalAgotado ? 'text-gray-400 line-through' : 'text-emerald-600'}`}>{mod.price_delta > 0 ? `+$${mod.price_delta}` : '0.00'}</span>
-                                      <button onClick={() => setEditingModifierState({ ...editingModifierState, [mod.id]: { name: mod.name, priceDelta: mod.price_delta.toString() } })} className="text-gray-400 cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>
-                                      <button onClick={() => handleDeleteModifier(group.id, mod.id, mod.name)} className="text-gray-400 hover:text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                                      <button onClick={() => setEditingModifierState({ ...editingModifierState, [mod.id]: { name: mod.name, priceDelta: mod.price_delta.toString() } })} className="text-gray-400 hover:text-emerald-600 cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>
+                                      <button onClick={() => handleDeleteModifier(group.id, mod.id, mod.name)} title="Eliminar de TODOS los platillos" className="text-gray-400 hover:text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
                                     </div>
                                   </>
                                 )}
@@ -469,7 +619,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                               )}
                             </div>
                             <input type="number" step="0.5" placeholder="Extra $" value={currentInput.priceDelta} onChange={(e) => setModifierInputs({ ...modifierInputs, [group.id]: { ...currentInput, priceDelta: e.target.value } })} className="w-20 p-2 border rounded-xl text-xs bg-white focus:outline-emerald-500" />
-                            <button type="button" onClick={() => handleAddModifier(group.id)} className="bg-gray-900 text-white font-bold px-3 py-2 rounded-xl text-xs cursor-pointer">Agregar</button>
+                            <button type="button" onClick={() => handleAddModifier(group.id)} className="bg-gray-900 hover:bg-gray-800 text-white font-bold px-3 py-2 rounded-xl text-xs cursor-pointer">Agregar</button>
                           </div>
                         </div>
                       </div>

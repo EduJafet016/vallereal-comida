@@ -59,17 +59,19 @@ export interface Modifier {
   price_delta: number;
   is_available: boolean;
   global_ingredient_id?: string; // Enlace al catálogo global
+  created_at?: string;
 }
 
 export interface ModifierGroup {
   id: string;
-  product_id: string;
+  product_id?: string; // Opcional: Ahora los grupos pueden ser globales
   tenant_id: string;
   name: string;
   is_required: boolean;
   min_selections: number;
   max_selections: number;
   modifiers?: Modifier[];
+  created_at?: string; // Resuelve el error de TS al ordenar
 }
 
 export interface Product {

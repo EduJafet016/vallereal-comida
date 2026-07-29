@@ -82,7 +82,7 @@ export function useTenantDashboard(token: string) {
   }, [tenant, token]);
 
   // 3. Recargar productos e ingredientes/modificadores
-const reloadProducts = useCallback(async () => {
+  const reloadProducts = useCallback(async () => {
     if (!tenant) return;
 
     setLoadingProducts(true);
@@ -93,18 +93,27 @@ const reloadProducts = useCallback(async () => {
         .select('*')
         .eq('tenant_id', tenant.id)
         .order('sort_order', { ascending: true })
-        .order('name', { ascending: true }), // Fallback alfabético para categorías
+        .order('name', { ascending: true }), 
       supabase
         .from('products')
-        .select('*, categories(name), modifier_groups(id)')
+        // SOLUCIÓN: Usamos la tabla puente en la consulta para evitar la relación ambigua
+        .select('*, categories(name), product_modifier_groups(modifier_group_id)')
         .eq('tenant_id', tenant.id)
-        .order('is_featured', { ascending: false }) // 1. Destacados primero
-        .order('sort_order', { ascending: true })   // 2. Orden manual 
-        .order('name', { ascending: true }),        // 3. Fallback alfabético determinista
+        .order('is_featured', { ascending: false }) 
+        .order('sort_order', { ascending: true })   
+        .order('name', { ascending: true }),        
     ]);
 
+    // Mapeamos los datos para inyectar los grupos de vuelta a la propiedad que espera el UI
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const formattedProducts = (prodData || []).map((prod: any) => ({
+      ...prod,
+      // La interfaz utiliza modifier_groups.length para el badge de "x Grupos"
+      modifier_groups: prod.product_modifier_groups || [],
+    }));
+
     setCategories(catData || []);
-    setProducts(prodData || []);
+    setProducts(formattedProducts as Product[]);
     setLoadingProducts(false);
   }, [tenant]);
 
