@@ -28,14 +28,17 @@ export default function VariantModal({
     setPrevProduct(product);
     if (product) {
       const variants = product.product_variants || [];
-      setSelectedVariant(variants.length > 0 ? variants[0] : undefined);
+      const initialVariant = variants.length > 0 ? variants[0] : undefined;
+      setSelectedVariant(initialVariant);
 
       if (product.modifier_groups) {
         const initialSelections: Record<string, Modifier[]> = {};
         product.modifier_groups.forEach((group) => {
+          // Obtener el límite máximo dinámico basado en la variante inicial
+          const maxAllowed = getDynamicMaxSelections(group, initialVariant);
           if (group.is_required && group.modifiers && group.modifiers.length > 0) {
             const availableModifiers = group.modifiers.filter(m => m.is_available !== false);
-            initialSelections[group.id] = group.max_selections === 1 && availableModifiers.length > 0 
+            initialSelections[group.id] = maxAllowed === 1 && availableModifiers.length > 0 
               ? [availableModifiers[0]] 
               : [];
           } else {
@@ -58,6 +61,44 @@ export default function VariantModal({
   const variants: ProductVariant[] = product.product_variants || [];
   const modifierGroups: ModifierGroup[] = product.modifier_groups || [];
 
+  // --- FUNCIÓN CLAVE: Límite Dinámico según la Variante Seleccionada ---
+  function getDynamicMaxSelections(group: ModifierGroup, variant?: ProductVariant): number {
+    const defaultMax = group.max_selections ?? 1;
+    if (!variant) return defaultMax;
+
+    const vName = variant.name.toLowerCase();
+
+    // Ejemplo 1: Si la variante contiene "14" o "grande", permitimos hasta 2 selecciones (puedes adaptarlo a tus nombres)
+    if (vName.includes('14') || vName.includes('mediano') || vName.includes('grande')) {
+      return Math.max(defaultMax, 2);
+    }
+    // Ejemplo 2: Si la variante contiene "20" o "familiar", permitimos hasta 3 selecciones
+    if (vName.includes('20') || vName.includes('familiar') || vName.includes('max')) {
+      return Math.max(defaultMax, 3);
+    }
+
+    return defaultMax;
+  }
+
+  // Manejador al cambiar de variante (revisa si hay que recortar selecciones excedentes)
+  const handleSelectVariant = (variant: ProductVariant) => {
+    setSelectedVariant(variant);
+
+    // Validar si las selecciones actuales superan el nuevo límite de la nueva variante
+    setSelectedModifiers((prev) => {
+      const updated = { ...prev };
+      modifierGroups.forEach((group) => {
+        const newMax = getDynamicMaxSelections(group, variant);
+        const currentList = updated[group.id] || [];
+        if (currentList.length > newMax) {
+          // Recortamos la lista al nuevo límite máximo permitido
+          updated[group.id] = currentList.slice(0, newMax);
+        }
+      });
+      return updated;
+    });
+  };
+
   const isVariantsValid = variants.length === 0 || selectedVariant !== undefined;
   
   const isModifiersValid = modifierGroups.every((group) => {
@@ -70,7 +111,6 @@ export default function VariantModal({
 
   const isFormValid = isVariantsValid && isModifiersValid;
 
-  // Precio base: Manejo seguro por si price_override es undefined
   const basePrice = selectedVariant?.price_override ?? product.price ?? 0;
   
   const modifiersTotalDelta = Object.values(selectedModifiers).reduce((sum, modList) => {
@@ -81,19 +121,21 @@ export default function VariantModal({
   const finalPrice = basePrice + modifiersTotalDelta;
 
   const handleSelectModifier = (group: ModifierGroup, modifier: Modifier) => {
+    const currentMax = getDynamicMaxSelections(group, selectedVariant);
+
     setSelectedModifiers((prev) => {
       const currentList = Array.isArray(prev[group.id]) ? prev[group.id] : [];
       const exists = currentList.some((mod) => mod.id === modifier.id);
 
-      if (group.max_selections === 1) {
+      if (currentMax === 1) {
         return { ...prev, [group.id]: [modifier] };
       }
 
       if (exists) {
         return { ...prev, [group.id]: currentList.filter((mod) => mod.id !== modifier.id) };
       } else {
-        if (group.max_selections && currentList.length >= group.max_selections) {
-          return prev; 
+        if (currentList.length >= currentMax) {
+          return prev; // Ya alcanzó el límite para esta variante específica
         }
         return { ...prev, [group.id]: [...currentList, modifier] };
       }
@@ -117,7 +159,7 @@ export default function VariantModal({
       type: 'ADD_ITEM',
       payload: {
         product,
-        variant: selectedVariant, // <-- Corregido a 'variant' según tu contexto de carrito
+        variant: selectedVariant,
         selectedModifiers: formattedModifiers,
         finalUnitPrice: finalPrice,
         notes: notes.trim() || undefined,
@@ -162,12 +204,12 @@ export default function VariantModal({
               <div className="grid grid-cols-1 gap-2">
                 {variants.map((variant) => {
                   const isSelected = selectedVariant?.id === variant.id;
-                  const variantPrice = variant.price_override ?? 0; // <-- Respaldo contra undefined
+                  const variantPrice = variant.price_override ?? 0;
                   return (
                     <button
                       key={variant.id}
                       type="button"
-                      onClick={() => setSelectedVariant(variant)}
+                      onClick={() => handleSelectVariant(variant)}
                       className={`w-full flex items-center justify-between p-3 rounded-2xl border-2 text-left transition-all cursor-pointer ${
                         isSelected
                           ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-600/10'
@@ -200,13 +242,14 @@ export default function VariantModal({
             modifierGroups.map((group) => {
               const currentList = Array.isArray(selectedModifiers[group.id]) ? selectedModifiers[group.id] : [];
               const modifiersList = group.modifiers || [];
-              const isSingle = group.max_selections === 1;
+              const dynamicMax = getDynamicMaxSelections(group, selectedVariant);
+              const isSingle = dynamicMax === 1;
 
               return (
                 <div key={group.id} className="space-y-2">
                   <div className="flex justify-between items-center">
                     <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">
-                      {group.name} {group.max_selections && group.max_selections > 1 && `(Máx. ${group.max_selections})`}
+                      {group.name} {dynamicMax > 1 && `(Máx. ${dynamicMax})`}
                     </h4>
                     {group.is_required && (
                       <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">

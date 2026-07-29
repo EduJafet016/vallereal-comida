@@ -23,8 +23,12 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [newVariantName, setNewVariantName] = useState('');
   const [newVariantPrice, setNewVariantPrice] = useState('');
+  const [newVariantMaxMods, setNewVariantMaxMods] = useState(''); // <-- Nuevo: Límite de extras
+  
   const [editingVariantState, setEditingVariantState] = useState<Record<string, { name: string; price: string }>>({});
+  const [editingVariantMaxModsState, setEditingVariantMaxModsState] = useState<Record<string, string>>({}); // <-- Nuevo: Edición de límite
 
+  // Estados para Grupos y Modificadores
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
   const [tenantGroups, setTenantGroups] = useState<{ id: string, name: string }[]>([]); 
   const [selectedGlobalGroupId, setSelectedGlobalGroupId] = useState('');
@@ -66,7 +70,9 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     setVariants(product.product_variants || []);
     setNewVariantName('');
     setNewVariantPrice('');
+    setNewVariantMaxMods('');
     setEditingVariantState({});
+    setEditingVariantMaxModsState({});
 
     setModifierInputs({});
     setEditingModifierState({});
@@ -78,7 +84,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     setSelectedGlobalGroupId('');
   }
 
-  // Efecto enfocado a consultas externas (Supabase)
+  // Carga de datos de la Base de Datos
   useEffect(() => {
     if (!product) return;
 
@@ -87,26 +93,22 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     let isMounted = true;
 
     async function loadData() {
-      // 1. Obtener grupos VINCULADOS mediante la tabla puente
       const linkedGroupsPromise = supabase
         .from('product_modifier_groups')
         .select('modifier_groups(*, modifiers(*))')
         .eq('product_id', productId);
 
-      // 2. Obtener TODOS los grupos del tenant para el dropdown de "Vincular"
       const allGroupsPromise = supabase
         .from('modifier_groups')
         .select('id, name')
         .eq('tenant_id', tenantId)
         .order('name');
 
-      // 3. Obtener ingredientes globales
       const ingredientsPromise = supabase
         .from('tenant_ingredients')
         .select('*')
         .eq('tenant_id', tenantId);
 
-      // 4. Obtener variantes del producto
       const variantsPromise = supabase
         .from('product_variants')
         .select('*')
@@ -172,9 +174,11 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     setSavingProduct(false);
   };
 
-  // --- GESTIÓN DE VARIANTES (Tamaños / Porciones) ---
+  // --- GESTIÓN DE VARIANTES ---
   const handleAddVariant = async () => {
     if (!newVariantName.trim() || !newVariantPrice.trim()) return;
+
+    const maxMods = parseInt(newVariantMaxMods) || 1;
 
     const { data, error } = await supabase
       .from('product_variants')
@@ -183,6 +187,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
         tenant_id: tenant.id,
         name: newVariantName.trim(),
         price_override: parseFloat(newVariantPrice) || 0,
+        max_modifier_selections: maxMods,
       }])
       .select()
       .single();
@@ -191,28 +196,48 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
       setVariants([...variants, data]);
       setNewVariantName('');
       setNewVariantPrice('');
+      setNewVariantMaxMods('');
     } else {
-      alert("Error al agregar la variante.");
+      console.error("Error detallado de Supabase:", error);
+      alert(`Error al agregar variante: ${error?.message || 'Desconocido'}`);
     }
   };
 
   const handleUpdateVariant = async (variantId: string) => {
     const state = editingVariantState[variantId];
+    const maxModsState = editingVariantMaxModsState[variantId];
     if (!state || !state.name.trim()) return;
 
     const trimmedName = state.name.trim();
     const priceOverride = parseFloat(state.price) || 0;
+    const maxMods = maxModsState !== undefined ? (parseInt(maxModsState) || 1) : undefined;
+
+    const updatePayload: { name: string; price_override: number; max_modifier_selections?: number } = { 
+      name: trimmedName, 
+      price_override: priceOverride 
+    };
+    if (maxMods !== undefined) updatePayload.max_modifier_selections = maxMods;
 
     const { error } = await supabase
       .from('product_variants')
-      .update({ name: trimmedName, price_override: priceOverride })
+      .update(updatePayload)
       .eq('id', variantId);
 
     if (!error) {
-      setVariants(variants.map(v => v.id === variantId ? { ...v, name: trimmedName, price_override: priceOverride } : v));
+      setVariants(variants.map(v => v.id === variantId ? { 
+        ...v, 
+        name: trimmedName, 
+        price_override: priceOverride, 
+        max_modifier_selections: maxMods ?? v.max_modifier_selections 
+      } : v));
+      
       const copy = { ...editingVariantState };
       delete copy[variantId];
       setEditingVariantState(copy);
+
+      const copyMax = { ...editingVariantMaxModsState };
+      delete copyMax[variantId];
+      setEditingVariantMaxModsState(copyMax);
     }
   };
 
@@ -233,7 +258,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     });
   };
 
-  // VINCULAR un grupo existente al platillo
+  // --- GESTIÓN DE GRUPOS ---
   const handleLinkGroup = async () => {
     if (!selectedGlobalGroupId) return;
     
@@ -264,7 +289,6 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     }
   };
 
-  // CREAR y vincular un grupo nuevo
   const handleAddGroup = async () => {
     if (!newGroupName.trim()) return;
 
@@ -345,6 +369,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     });
   };
 
+  // --- GESTIÓN DE MODIFICADORES ---
   const resolveGlobalIngredient = async (name: string): Promise<string | null> => {
     const trimmed = name.trim();
     const existing = globalIngredients.find(g => g.name.toLowerCase() === trimmed.toLowerCase());
@@ -497,7 +522,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
             </form>
 
             {/* ======================================================== */}
-            {/* SECCIÓN DE VARIANTES / TAMAÑOS / OPCIONES DE PRECIO       */}
+            {/* SECCIÓN DE VARIANTES / TAMAÑOS (AHORA CON MÁX EXTRAS)    */}
             {/* ======================================================== */}
             <div className="space-y-3 pt-2 border-t">
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">Variantes y Tamaños (Opcional)</h4>
@@ -522,7 +547,17 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                     value={newVariantPrice}
                     onChange={(e) => setNewVariantPrice(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddVariant()}
-                    className="w-24 p-2 bg-white border rounded-xl text-xs font-medium text-gray-900 focus:outline-emerald-500"
+                    className="w-20 p-2 bg-white border rounded-xl text-xs font-medium text-gray-900 focus:outline-emerald-500"
+                  />
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="Máx. extras"
+                    title="Cantidad máxima de ingredientes/salsas permitidas para esta variante"
+                    value={newVariantMaxMods}
+                    onChange={(e) => setNewVariantMaxMods(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddVariant()}
+                    className="w-20 p-2 bg-white border rounded-xl text-xs font-medium text-gray-900 focus:outline-emerald-500"
                   />
                   <button
                     type="button"
@@ -539,6 +574,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                   {variants.map((variant) => {
                     const isEditing = editingVariantState[variant.id] !== undefined;
                     const vState = editingVariantState[variant.id] || { name: variant.name, price: (variant.price_override ?? 0).toString() };
+                    const vMaxMods = editingVariantMaxModsState[variant.id] ?? (variant.max_modifier_selections ?? 1).toString();
                     const variantPrice = variant.price_override ?? 0;
 
                     return (
@@ -556,15 +592,30 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                               step="0.5"
                               value={vState.price}
                               onChange={(e) => setEditingVariantState({ ...editingVariantState, [variant.id]: { ...vState, price: e.target.value } })}
-                              className="w-20 p-1.5 border rounded-lg text-xs font-medium text-gray-900"
+                              className="w-16 p-1.5 border rounded-lg text-xs font-medium text-gray-900"
+                            />
+                            <input
+                              type="number"
+                              min="1"
+                              value={vMaxMods}
+                              placeholder="Máx"
+                              title="Máx extras"
+                              onChange={(e) => setEditingVariantMaxModsState({ ...editingVariantMaxModsState, [variant.id]: e.target.value })}
+                              className="w-16 p-1.5 border rounded-lg text-xs font-medium text-gray-900"
                             />
                             <button onClick={() => handleUpdateVariant(variant.id)} className="p-1.5 bg-emerald-600 text-white rounded-lg cursor-pointer"><Check className="w-3.5 h-3.5" /></button>
-                            <button onClick={() => { const copy = { ...editingVariantState }; delete copy[variant.id]; setEditingVariantState(copy); }} className="p-1.5 text-gray-400 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => { 
+                              const copy = { ...editingVariantState }; delete copy[variant.id]; setEditingVariantState(copy); 
+                              const copyM = { ...editingVariantMaxModsState }; delete copyM[variant.id]; setEditingVariantMaxModsState(copyM);
+                            }} className="p-1.5 text-gray-400 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                           </div>
                         ) : (
                           <>
-                            <div className="flex-1 font-bold text-gray-800">
-                              {variant.name}
+                            <div className="flex-1 font-bold text-gray-800 flex items-center gap-2">
+                              <span>{variant.name}</span>
+                              <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-semibold">
+                                Máx. extras: {variant.max_modifier_selections ?? 1}
+                              </span>
                             </div>
                             <div className="flex items-center gap-3">
                               <span className="font-black text-emerald-600">${variantPrice.toFixed(2)}</span>

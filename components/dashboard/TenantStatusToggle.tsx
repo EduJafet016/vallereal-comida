@@ -1,108 +1,119 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Power, Loader2 } from 'lucide-react';
+import { Tenant } from '@/types';
+import { Bike, Store, Utensils, Loader2 } from 'lucide-react';
 
 interface Props {
-  tenantId: string;
-  initialIsActive?: boolean;
-  closingTime?: string; // Ejemplo: '22:30:00' o '22:30'
+  tenant: Tenant;
+  onReload: () => void;
 }
 
-export function TenantStatusToggle({ tenantId, initialIsActive = true, closingTime }: Props) {
-  const [isActive, setIsActive] = useState(initialIsActive);
-  const [loading, setLoading] = useState(false);
+export function TenantDeliveryInputs({ tenant, onReload }: Props) {
+  const [loadingField, setLoadingField] = useState<string | null>(null);
 
-  // Efecto de Auto-Apagado Inteligente
-  useEffect(() => {
-    // Si el local ya está apagado o no tenemos hora de cierre, no hacemos nada
-    if (!isActive || !closingTime) return;
-
-    // Encapsulamos la función dentro del useEffect para evitar la Temporal Dead Zone (TDZ)
-    const turnOffAutomatically = async () => {
-      const { error } = await supabase
-        .from('tenants')
-        .update({ is_active: false })
-        .eq('id', tenantId);
-
-      if (!error) {
-        setIsActive(false);
-        console.log('Se alcanzó la hora de cierre. Negocio apagado automáticamente.');
-      }
-    };
-
-    const interval = setInterval(() => {
-      const now = new Date();
-      // Obtenemos la hora actual en formato HH:mm
-      const currentHour = now.getHours().toString().padStart(2, '0');
-      const currentMinute = now.getMinutes().toString().padStart(2, '0');
-      const currentTimeString = `${currentHour}:${currentMinute}`;
-
-      // Extraemos solo los primeros 5 caracteres de closingTime (HH:mm) para ignorar los segundos
-      const closingTimePrefix = closingTime.slice(0, 5);
-
-      // Si la hora y minuto actual coinciden exactamente con la hora de cierre
-      if (currentTimeString === closingTimePrefix) {
-        turnOffAutomatically();
-      }
-    }, 30000); // Revisamos el reloj cada 30 segundos para no perder el minuto exacto
-
-    return () => clearInterval(interval);
-  }, [isActive, closingTime, tenantId]);
-
-  const toggleStatus = async () => {
-    setLoading(true);
-    const nextState = !isActive;
+  const handleToggle = async (field: 'allow_delivery' | 'allow_pickup' | 'allow_dine_in', currentValue: boolean) => {
+    setLoadingField(field);
+    const nextValue = !currentValue;
 
     const { error } = await supabase
       .from('tenants')
-      .update({ is_active: nextState })
-      .eq('id', tenantId);
+      .update({ [field]: nextValue })
+      .eq('id', tenant.id);
 
     if (error) {
-      console.error('Error al actualizar estado:', error);
-      alert('Ocurrió un error al actualizar el estado del restaurante.');
+      console.error('Error al actualizar método de entrega:', error);
+      alert('Ocurrió un error al actualizar la configuración.');
     } else {
-      setIsActive(nextState);
+      onReload();
     }
-    setLoading(false);
+    setLoadingField(null);
   };
 
+  const deliveryAllowed = tenant.allow_delivery ?? true;
+  const pickupAllowed = tenant.allow_pickup ?? true;
+  const dineInAllowed = tenant.allow_dine_in ?? false;
+
   return (
-    <div className="bg-white p-4 rounded-2xl border shadow-sm flex items-center justify-between">
-      <div className="flex items-center gap-3">
-        <div className={`p-2.5 rounded-xl border transition-colors ${
-          isActive 
-            ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
-            : 'bg-red-50 text-red-600 border-red-100'
-        }`}>
-          <Power className="w-5 h-5" />
-        </div>
-        <div>
-          <h3 className="text-sm font-bold text-gray-900">
-            Estado del Negocio: <span className={isActive ? 'text-emerald-600' : 'text-red-600'}>{isActive ? 'Abierto' : 'Cerrado'}</span>
-          </h3>
-          <p className="text-xs text-gray-500">
-            {isActive 
-              ? 'El restaurante está recibiendo pedidos' 
-              : 'Menú en modo lectura (pedidos pausados)'}
-          </p>
-        </div>
+    <div className="bg-white p-5 rounded-2xl border shadow-sm space-y-4">
+      <div>
+        <h3 className="text-sm font-bold text-gray-900">Métodos de Entrega</h3>
+        <p className="text-xs text-gray-500">Activa o desactiva las opciones disponibles para tus clientes en tiempo real.</p>
       </div>
 
-      <button
-        onClick={toggleStatus}
-        disabled={loading}
-        className={`px-4 py-2 text-xs font-bold rounded-xl transition-all border flex items-center gap-2 cursor-pointer active:scale-95 ${
-          isActive
-            ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 shadow-sm'
-            : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
-        }`}
-      >
-        {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-        <span>{isActive ? '● Servicio Activo' : '○ Pausado'}</span>
-      </button>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        
+        {/* Envio a Domicilio */}
+        <button
+          type="button"
+          disabled={loadingField === 'allow_delivery'}
+          onClick={() => handleToggle('allow_delivery', deliveryAllowed)}
+          className={`p-3.5 rounded-2xl border-2 text-left transition-all flex items-center justify-between cursor-pointer ${
+            deliveryAllowed 
+              ? 'border-emerald-600 bg-emerald-50/50 text-emerald-900' 
+              : 'border-gray-200 bg-gray-50 text-gray-400 opacity-75'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-xl ${deliveryAllowed ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}>
+              <Bike className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="block text-xs font-bold">A Domicilio</span>
+              <span className="text-[10px] font-medium">{deliveryAllowed ? 'Habilitado' : 'Deshabilitado'}</span>
+            </div>
+          </div>
+          {loadingField === 'allow_delivery' && <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />}
+        </button>
+
+        {/* Pasar a Recoger */}
+        <button
+          type="button"
+          disabled={loadingField === 'allow_pickup'}
+          onClick={() => handleToggle('allow_pickup', pickupAllowed)}
+          className={`p-3.5 rounded-2xl border-2 text-left transition-all flex items-center justify-between cursor-pointer ${
+            pickupAllowed 
+              ? 'border-emerald-600 bg-emerald-50/50 text-emerald-900' 
+              : 'border-gray-200 bg-gray-50 text-gray-400 opacity-75'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-xl ${pickupAllowed ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}>
+              <Store className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="block text-xs font-bold">Para Recoger</span>
+              <span className="text-[10px] font-medium">{pickupAllowed ? 'Habilitado' : 'Deshabilitado'}</span>
+            </div>
+          </div>
+          {loadingField === 'allow_pickup' && <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />}
+        </button>
+
+        {/* Comer en Mesa */}
+        <button
+          type="button"
+          disabled={loadingField === 'allow_dine_in'}
+          onClick={() => handleToggle('allow_dine_in', dineInAllowed)}
+          className={`p-3.5 rounded-2xl border-2 text-left transition-all flex items-center justify-between cursor-pointer ${
+            dineInAllowed 
+              ? 'border-emerald-600 bg-emerald-50/50 text-emerald-900' 
+              : 'border-gray-200 bg-gray-50 text-gray-400 opacity-75'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-xl ${dineInAllowed ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}>
+              <Utensils className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="block text-xs font-bold">En Mesa</span>
+              <span className="text-[10px] font-medium">{dineInAllowed ? 'Habilitado' : 'Deshabilitado'}</span>
+            </div>
+          </div>
+          {loadingField === 'allow_dine_in' && <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />}
+        </button>
+
+      </div>
     </div>
   );
 }

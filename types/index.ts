@@ -17,6 +17,9 @@ export interface Tenant {
   admin_pin?: string;
   admin_token?: string;
   created_at?: string;
+  allow_delivery?: boolean;
+  allow_pickup?: boolean;
+  allow_dine_in?: boolean;
 }
 
 export interface BeforeInstallPromptEvent extends Event {
@@ -35,14 +38,18 @@ export interface Category {
   sort_order: number;
 }
 
+// Interfaz única y unificada de ProductVariant
 export interface ProductVariant {
   id: string;
   product_id: string;
+  tenant_id: string;
   name: string;
   price_override?: number;
+  max_modifier_selections?: number;
+  created_at?: string;
 }
 
-// === NUEVO: Inventario Global ===
+// === Inventario Global ===
 export interface TenantIngredient {
   id: string;
   tenant_id: string;
@@ -51,27 +58,27 @@ export interface TenantIngredient {
   created_at?: string;
 }
 
-// Nuevas interfaces para el sistema profesional de modificadores y extras
+// Sistema profesional de modificadores y extras
 export interface Modifier {
   id: string;
   group_id: string;
   name: string;
   price_delta: number;
   is_available: boolean;
-  global_ingredient_id?: string; // Enlace al catálogo global
+  global_ingredient_id?: string;
   created_at?: string;
 }
 
 export interface ModifierGroup {
   id: string;
-  product_id?: string; // Opcional: Ahora los grupos pueden ser globales
+  product_id?: string;
   tenant_id: string;
   name: string;
   is_required: boolean;
   min_selections: number;
   max_selections: number;
   modifiers?: Modifier[];
-  created_at?: string; // Resuelve el error de TS al ordenar
+  created_at?: string;
 }
 
 export interface Product {
