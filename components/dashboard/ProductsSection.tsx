@@ -97,11 +97,22 @@ function SortableItem({
         </button>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <h3 className="font-bold text-slate-900 text-xs truncate">{product.name}</h3>
-            {isFeatured && <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />}
+          {/* Ajuste visual: items-start, break-words y shrink-0 en la estrella */}
+          <div className="flex items-start gap-1.5 pr-2">
+            <h3 className="font-bold text-slate-900 text-xs leading-tight break-words">
+              {product.name}
+            </h3>
+            {isFeatured && (
+              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 shrink-0 mt-[1px]" />
+            )}
           </div>
-          {product.description && <p className="text-[11px] text-slate-500 truncate">{product.description}</p>}
+          
+          {/* Ajuste visual: line-clamp-2 en lugar de truncate */}
+          {product.description && (
+            <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+              {product.description}
+            </p>
+          )}
           
           <div className="flex items-center gap-1.5 mt-1.5">
             <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full ${
