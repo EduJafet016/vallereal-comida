@@ -31,7 +31,8 @@ export default async function TenantPage({ params }: Props) {
       .from('categories')
       .select('*')
       .eq('tenant_id', tenant.id)
-      .order('name'),
+      .order('sort_order', { ascending: true }) // Ajuste opcional para categorías
+      .order('name', { ascending: true }),
     supabase
       .from('products')
       .select(`
@@ -55,6 +56,9 @@ export default async function TenantPage({ params }: Props) {
         )
       `)
       .eq('tenant_id', tenant.id)
+      .order('is_featured', { ascending: false }) // Prioridad 1: Destacados
+      .order('sort_order', { ascending: true })   // Prioridad 2: Índice de Drag and Drop
+      .order('name', { ascending: true })         // Prioridad 3: Fallback alfabético determinista
   ]);
 
   // 3. Auditoría de servidor: Esto se imprimirá en tu TERMINAL (donde corre npm run dev), no en el navegador

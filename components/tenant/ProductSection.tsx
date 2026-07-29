@@ -1,7 +1,8 @@
 'use client';
 
 import { Category, Product } from '@/types';
-import { Layers, Plus } from 'lucide-react';
+// 1. Agregamos el icono Star
+import { Layers, Plus, Star } from 'lucide-react';
 
 interface ProductSectionProps {
   categories: Category[];
@@ -72,16 +73,21 @@ export function ProductSection({
                   const hasModifiers =
                     (Array.isArray(product.modifier_groups) && product.modifier_groups.length > 0) ||
                     (Array.isArray(product.product_variants) && product.product_variants.length > 0);
+                  
                   const isAvailable = isOpen && product.is_available;
+                  const isFeatured = product.is_featured;
+
+                  // 2. Evaluamos el estilo de la tarjeta basándonos en si está destacada y disponible
+                  const cardStyle = !isAvailable
+                    ? 'border-slate-100 opacity-60 bg-slate-50/50'
+                    : isFeatured
+                      ? 'border-amber-200 bg-amber-50/40 hover:border-amber-300 hover:shadow-md'
+                      : 'border-slate-100 bg-white hover:border-emerald-200 hover:shadow-md';
 
                   return (
                     <div
                       key={product.id}
-                      className={`flex justify-between items-center p-4 bg-white border rounded-2xl shadow-xs transition-all ${
-                        isAvailable
-                          ? 'border-slate-100 hover:border-emerald-200 hover:shadow-md'
-                          : 'border-slate-100 opacity-60 bg-slate-50/50'
-                      }`}
+                      className={`flex justify-between items-center p-4 border rounded-2xl shadow-xs transition-all ${cardStyle}`}
                     >
                       <div className="flex-1 pr-3 space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -92,6 +98,13 @@ export function ProductSection({
                           >
                             {product.name}
                           </h3>
+
+                          {/* 3. Badge visual para destacados */}
+                          {isFeatured && isAvailable && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100/80 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">
+                              <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Recomendado
+                            </span>
+                          )}
 
                           {hasModifiers && isAvailable && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-100">
@@ -114,7 +127,7 @@ export function ProductSection({
 
                         <span
                           className={`text-sm font-black block pt-0.5 ${
-                            isAvailable ? 'text-emerald-700' : 'text-slate-400'
+                            isAvailable ? (isFeatured ? 'text-amber-700' : 'text-emerald-700') : 'text-slate-400'
                           }`}
                         >
                           ${product.price.toFixed(2)}
@@ -124,7 +137,11 @@ export function ProductSection({
                       {isAvailable ? (
                         <button
                           onClick={() => onAddProduct(product)}
-                          className="w-10 h-10 bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white rounded-2xl flex items-center justify-center transition-all active:scale-95 shrink-0 cursor-pointer shadow-2xs group"
+                          className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-95 shrink-0 cursor-pointer shadow-2xs group ${
+                            isFeatured 
+                              ? 'bg-amber-100 hover:bg-amber-500 text-amber-600 hover:text-white' 
+                              : 'bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white'
+                          }`}
                           aria-label={`Agregar ${product.name}`}
                         >
                           <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />

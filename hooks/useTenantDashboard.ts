@@ -82,14 +82,25 @@ export function useTenantDashboard(token: string) {
   }, [tenant, token]);
 
   // 3. Recargar productos e ingredientes/modificadores
-  const reloadProducts = useCallback(async () => {
+const reloadProducts = useCallback(async () => {
     if (!tenant) return;
 
     setLoadingProducts(true);
 
     const [{ data: catData }, { data: prodData }] = await Promise.all([
-      supabase.from('categories').select('*').eq('tenant_id', tenant.id).order('sort_order'),
-      supabase.from('products').select('*, categories(name), modifier_groups(id)').eq('tenant_id', tenant.id).order('category_id'),
+      supabase
+        .from('categories')
+        .select('*')
+        .eq('tenant_id', tenant.id)
+        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true }), // Fallback alfabético para categorías
+      supabase
+        .from('products')
+        .select('*, categories(name), modifier_groups(id)')
+        .eq('tenant_id', tenant.id)
+        .order('is_featured', { ascending: false }) // 1. Destacados primero
+        .order('sort_order', { ascending: true })   // 2. Orden manual 
+        .order('name', { ascending: true }),        // 3. Fallback alfabético determinista
     ]);
 
     setCategories(catData || []);

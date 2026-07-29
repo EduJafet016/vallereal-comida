@@ -80,6 +80,8 @@ export interface Product {
   description?: string;
   price: number;
   is_available: boolean;
+  is_featured?: boolean;
+  sort_order?: number;
   product_variants?: ProductVariant[];
   modifier_groups?: ModifierGroup[]; 
 }
