@@ -34,10 +34,10 @@ export default function VariantModal({
       if (product.modifier_groups) {
         const initialSelections: Record<string, Modifier[]> = {};
         product.modifier_groups.forEach((group) => {
-          // Obtener el límite máximo dinámico basado en la variante inicial
           const maxAllowed = getDynamicMaxSelections(group, initialVariant);
           if (group.is_required && group.modifiers && group.modifiers.length > 0) {
             const availableModifiers = group.modifiers.filter(m => m.is_available !== false);
+            // Si es de selección única y es obligatorio, autoseleccionamos el primero por comodidad
             initialSelections[group.id] = maxAllowed === 1 && availableModifiers.length > 0 
               ? [availableModifiers[0]] 
               : [];
@@ -61,37 +61,29 @@ export default function VariantModal({
   const variants: ProductVariant[] = product.product_variants || [];
   const modifierGroups: ModifierGroup[] = product.modifier_groups || [];
 
-  // --- FUNCIÓN CLAVE: Límite Dinámico según la Variante Seleccionada ---
+  // --- LÓGICA CLAVE: Lee el límite configurado por el tenant en la variante ---
   function getDynamicMaxSelections(group: ModifierGroup, variant?: ProductVariant): number {
-    const defaultMax = group.max_selections ?? 1;
-    if (!variant) return defaultMax;
-
-    const vName = variant.name.toLowerCase();
-
-    // Ejemplo 1: Si la variante contiene "14" o "grande", permitimos hasta 2 selecciones (puedes adaptarlo a tus nombres)
-    if (vName.includes('14') || vName.includes('mediano') || vName.includes('grande')) {
-      return Math.max(defaultMax, 2);
+    if (variant && variant.max_modifier_selections !== undefined && variant.max_modifier_selections !== null) {
+      return variant.max_modifier_selections;
     }
-    // Ejemplo 2: Si la variante contiene "20" o "familiar", permitimos hasta 3 selecciones
-    if (vName.includes('20') || vName.includes('familiar') || vName.includes('max')) {
-      return Math.max(defaultMax, 3);
-    }
-
-    return defaultMax;
+    return group.max_selections ?? 1;
   }
 
-  // Manejador al cambiar de variante (revisa si hay que recortar selecciones excedentes)
+  // Manejador al cambiar de variante (recorta excesos si se reduce el límite)
   const handleSelectVariant = (variant: ProductVariant) => {
     setSelectedVariant(variant);
 
-    // Validar si las selecciones actuales superan el nuevo límite de la nueva variante
     setSelectedModifiers((prev) => {
       const updated = { ...prev };
       modifierGroups.forEach((group) => {
         const newMax = getDynamicMaxSelections(group, variant);
         const currentList = updated[group.id] || [];
-        if (currentList.length > newMax) {
-          // Recortamos la lista al nuevo límite máximo permitido
+        
+        if (newMax === 1 && currentList.length === 0 && group.is_required && group.modifiers && group.modifiers.length > 0) {
+          // Si el nuevo límite es 1 y es obligatorio pero no tenía nada, autoseleccionamos el primero disponible
+          const firstAvail = group.modifiers.find(m => m.is_available !== false);
+          updated[group.id] = firstAvail ? [firstAvail] : [];
+        } else if (currentList.length > newMax) {
           updated[group.id] = currentList.slice(0, newMax);
         }
       });
@@ -128,6 +120,11 @@ export default function VariantModal({
       const exists = currentList.some((mod) => mod.id === modifier.id);
 
       if (currentMax === 1) {
+        // Si es de máximo 1 selección y ya estaba seleccionado, permitimos quitarlo solo si no es estrictamente obligatorio
+        if (exists && !group.is_required) {
+          return { ...prev, [group.id]: [] };
+        }
+        // Si es obligatorio con máx 1, simplemente reemplazamos por el nuevo elegido
         return { ...prev, [group.id]: [modifier] };
       }
 
@@ -135,7 +132,7 @@ export default function VariantModal({
         return { ...prev, [group.id]: currentList.filter((mod) => mod.id !== modifier.id) };
       } else {
         if (currentList.length >= currentMax) {
-          return prev; // Ya alcanzó el límite para esta variante específica
+          return prev; // Ya alcanzó el límite permitido por la variante
         }
         return { ...prev, [group.id]: [...currentList, modifier] };
       }
