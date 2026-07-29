@@ -1,0 +1,210 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import { Category, Tenant } from '@/types';
+import { X, ListTree, Plus, Pencil, Trash2, Check } from 'lucide-react';
+import { ConfirmModal } from './ConfirmModal';
+
+interface ManageCategoriesModalProps {
+  tenant: Tenant;
+  onClose: () => void;
+  onReload: () => void;
+}
+
+export function ManageCategoriesModal({ tenant, onClose, onReload }: ManageCategoriesModalProps) {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [editingState, setEditingState] = useState<Record<string, string>>({});
+
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchCategories() {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('tenant_id', tenant.id)
+        .order('sort_order', { ascending: true });
+
+      if (isMounted) {
+        if (data && !error) setCategories(data);
+        setLoading(false);
+      }
+    }
+
+    void fetchCategories();
+
+    return () => { isMounted = false; };
+  }, [tenant.id]);
+
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) return;
+
+    const maxSortOrder = categories.length > 0 
+      ? Math.max(...categories.map(c => c.sort_order || 0)) 
+      : -1;
+
+    const { data, error } = await supabase
+      .from('categories')
+      .insert([{ 
+        tenant_id: tenant.id, 
+        name: newCategoryName.trim(), 
+        sort_order: maxSortOrder + 1 
+      }])
+      .select()
+      .single();
+
+    if (data && !error) {
+      setCategories([...categories, data]);
+      setNewCategoryName('');
+      onReload(); 
+    }
+  };
+
+  const handleUpdateCategory = async (id: string) => {
+    const name = editingState[id];
+    if (!name || !name.trim()) return;
+    const trimmedName = name.trim();
+
+    const { error } = await supabase
+      .from('categories')
+      .update({ name: trimmedName })
+      .eq('id', id);
+
+    if (!error) {
+      setCategories(categories.map(c => c.id === id ? { ...c, name: trimmedName } : c));
+      const copy = { ...editingState };
+      delete copy[id];
+      setEditingState(copy);
+      onReload();
+    }
+  };
+
+  const executeDeleteCategory = async (id: string) => {
+    const { error } = await supabase.from('categories').delete().eq('id', id);
+    
+    if (error) {
+      // Manejo de error de Foreign Key: si la categoría tiene productos asignados.
+      alert('Error: No puedes eliminar una categoría que aún tiene platillos asignados. Mueve o elimina los platillos primero.');
+    } else {
+      setCategories(categories.filter(c => c.id !== id));
+      onReload();
+    }
+    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const handleDeleteClick = (id: string, name: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: '¿Eliminar categoría?',
+      message: `¿Estás seguro de eliminar la categoría "${name}"?`,
+      onConfirm: () => executeDeleteCategory(id),
+    });
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-xl space-y-5 max-h-[85vh] flex flex-col">
+          <div className="flex justify-between items-center border-b pb-3 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center">
+                <ListTree className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 text-base">Gestionar Categorías</h3>
+              </div>
+            </div>
+            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 cursor-pointer">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="overflow-y-auto flex-1 space-y-4 pr-1 pb-4">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Nueva categoría..."
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
+                className="flex-1 p-2 border rounded-xl text-xs bg-white text-gray-900 focus:outline-blue-500"
+              />
+              <button 
+                onClick={handleAddCategory}
+                className="bg-gray-900 text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer hover:bg-gray-800"
+              >
+                <Plus className="w-4 h-4 inline" /> Agregar
+              </button>
+            </div>
+
+            {loading ? (
+              <p className="text-xs text-gray-400 text-center py-4">Cargando categorías...</p>
+            ) : categories.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-4 italic">No hay categorías configuradas.</p>
+            ) : (
+              <div className="space-y-2">
+                {categories.map(category => {
+                  const isEditing = editingState[category.id] !== undefined;
+                  const currentName = editingState[category.id] ?? category.name;
+
+                  return (
+                    <div key={category.id} className="flex justify-between items-center p-3 bg-gray-50 border rounded-xl shadow-sm">
+                      {isEditing ? (
+                        <div className="flex flex-1 gap-2 items-center">
+                          <input
+                            type="text"
+                            value={currentName}
+                            onChange={(e) => setEditingState({ ...editingState, [category.id]: e.target.value })}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleUpdateCategory(category.id); }}
+                            className="flex-1 p-1.5 border rounded-lg text-xs bg-white text-gray-900 font-bold uppercase"
+                            autoFocus
+                          />
+                          <button onClick={() => handleUpdateCategory(category.id)} className="p-1.5 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700">
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => { const copy = { ...editingState }; delete copy[category.id]; setEditingState(copy); }} className="p-1.5 text-gray-400 hover:text-gray-600 cursor-pointer">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="text-sm font-bold text-gray-900 uppercase truncate pr-4">{category.name}</span>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => setEditingState({ ...editingState, [category.id]: category.name })} className="p-1.5 text-gray-400 hover:text-blue-600 cursor-pointer">
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleDeleteClick(category.id, category.name)} className="p-1.5 text-gray-400 hover:text-red-600 cursor-pointer">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="pt-2 border-t shrink-0 flex justify-end">
+            <button onClick={onClose} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs shadow-md cursor-pointer">
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+      <ConfirmModal isOpen={confirmModal.isOpen} title={confirmModal.title} message={confirmModal.message} onConfirm={confirmModal.onConfirm} onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))} />
+    </>
+  );
+}

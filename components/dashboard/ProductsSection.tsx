@@ -3,10 +3,13 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Tenant, Product, Category } from '@/types';
-import { Plus, RefreshCw, Utensils, Pencil, Trash2, Eye, EyeOff, Layers, Loader2 } from 'lucide-react';
+// 1. Agregado el ícono ListTree
+import { Plus, RefreshCw, Utensils, Pencil, Trash2, Eye, EyeOff, Layers, Loader2, ListTree } from 'lucide-react';
 import { ConfirmModal } from './products/ConfirmModal';
 import { AddProductModal, NewProductData } from './products/AddProductModal';
 import { EditProductModal } from './products/EditProductModal';
+// 2. Importación del nuevo modal
+import { ManageCategoriesModal } from './products/ManageCategoriesModal';
 
 interface Props {
   tenant: Tenant;
@@ -32,6 +35,9 @@ export function ProductsSection({ tenant, categories, products: initialProducts,
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [creatingProduct, setCreatingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  
+  // 3. Estado para controlar el modal de categorías
+  const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
 
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -146,6 +152,15 @@ export function ProductsSection({ tenant, categories, products: initialProducts,
           <Utensils className="w-3.5 h-3.5 text-[#007A55]" /> Platillos
         </span>
         <div className="flex items-center gap-2">
+          {/* 4. Botón de categorías inyectado aquí, respetando tu UI */}
+          <button
+            onClick={() => setIsCategoriesModalOpen(true)}
+            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all shadow-2xs flex items-center gap-1 cursor-pointer active:scale-95"
+            title="Gestionar categorías"
+          >
+            <ListTree className="w-3.5 h-3.5" /> Categorías
+          </button>
+          
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="px-3 py-1.5 bg-[#007A55] hover:bg-[#006344] text-white text-xs font-bold rounded-xl transition-all shadow-2xs flex items-center gap-1 cursor-pointer active:scale-95"
@@ -254,6 +269,7 @@ export function ProductsSection({ tenant, categories, products: initialProducts,
         </div>
       )}
 
+      {/* Modales */}
       <AddProductModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
@@ -268,6 +284,15 @@ export function ProductsSection({ tenant, categories, products: initialProducts,
         onClose={() => setEditingProduct(null)}
         onReload={onReload}
       />
+
+      {/* 5. Montaje del nuevo modal */}
+      {isCategoriesModalOpen && (
+        <ManageCategoriesModal
+          tenant={tenant}
+          onClose={() => setIsCategoriesModalOpen(false)}
+          onReload={onReload}
+        />
+      )}
 
       <ConfirmModal
         isOpen={confirmModal.isOpen}
