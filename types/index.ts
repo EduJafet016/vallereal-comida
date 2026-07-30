@@ -113,3 +113,14 @@ export type TenantWithMenu = Tenant & {
   categories?: Pick<Category, 'name'>[];
   logo_url?: string | null;
 };
+
+export interface Modifier {
+  id: string;
+  group_id: string;
+  name: string;
+  price_delta: number;
+  is_available: boolean;
+  global_ingredient_id?: string;
+  category_label?: string; // <-- NUEVO: Etiqueta para agrupar visualmente
+  created_at?: string;
+}

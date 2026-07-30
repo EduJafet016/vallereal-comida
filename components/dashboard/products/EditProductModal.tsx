@@ -41,8 +41,8 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
   const [newGroupMin, setNewGroupMin] = useState(0);
   const [newGroupMax, setNewGroupMax] = useState(0);
   
-  const [modifierInputs, setModifierInputs] = useState<Record<string, { name: string; priceDelta: string }>>({});
-  const [editingModifierState, setEditingModifierState] = useState<Record<string, { name: string; priceDelta: string }>>({});
+  const [modifierInputs, setModifierInputs] = useState<Record<string, { name: string; priceDelta: string; categoryLabel: string }>>({});
+  const [editingModifierState, setEditingModifierState] = useState<Record<string, { name: string; priceDelta: string; categoryLabel?: string }>>({});
   const [editingGroupState, setEditingGroupState] = useState<Record<string, string>>({});
 
   const [confirmModal, setConfirmModal] = useState<{
@@ -392,56 +392,68 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     return null;
   };
 
-  const handleAddModifier = async (groupId: string) => {
-    const input = modifierInputs[groupId];
-    if (!input || !input.name.trim()) return;
+const handleAddModifier = async (groupId: string) => {
+  const input = modifierInputs[groupId];
+  if (!input || !input.name.trim()) return;
 
-    const trimmedName = input.name.trim();
-    const priceDelta = parseFloat(input.priceDelta) || 0;
-    const globalIngId = await resolveGlobalIngredient(trimmedName);
+  const trimmedName = input.name.trim();
+  const priceDelta = parseFloat(input.priceDelta) || 0;
+  const globalIngId = await resolveGlobalIngredient(trimmedName);
 
-    const { data, error } = await supabase
-      .from('modifiers')
-      .insert([{
-        group_id: groupId,
-        name: trimmedName,
-        price_delta: priceDelta,
-        is_available: true,
-        global_ingredient_id: globalIngId
-      }])
-      .select().single();
+  const { data, error } = await supabase
+    .from('modifiers')
+    .insert([{
+      group_id: groupId,
+      name: trimmedName,
+      price_delta: priceDelta,
+      is_available: true,
+      global_ingredient_id: globalIngId,
+      category_label: input.categoryLabel?.trim() || null
+    }])
+    .select().single();
 
-    if (!error && data) {
-      const newModSafelyTyped: Modifier = { ...data, global_ingredient_id: data.global_ingredient_id ?? undefined };
-      setModifierGroups(modifierGroups.map((g) => g.id === groupId ? { ...g, modifiers: [...(g.modifiers || []), newModSafelyTyped] } : g));
-      setModifierInputs({ ...modifierInputs, [groupId]: { name: '', priceDelta: '' } });
-      setActiveDropdown(null);
-    }
-  };
+  if (!error && data) {
+    const newModSafelyTyped: Modifier = { ...data, global_ingredient_id: data.global_ingredient_id ?? undefined };
+    setModifierGroups(modifierGroups.map((g) => g.id === groupId ? { ...g, modifiers: [...(g.modifiers || []), newModSafelyTyped] } : g));
+    setModifierInputs({ ...modifierInputs, [groupId]: { name: '', priceDelta: '', categoryLabel: '' } });
+    setActiveDropdown(null);
+  }
+};
 
-  const handleUpdateModifier = async (groupId: string, modifierId: string) => {
+const handleUpdateModifier = async (groupId: string, modifierId: string) => {
     const state = editingModifierState[modifierId];
     if (!state || !state.name.trim()) return;
 
     const trimmedName = state.name.trim();
     const priceDelta = parseFloat(state.priceDelta) || 0;
     const globalIngId = await resolveGlobalIngredient(trimmedName);
+    const categoryLabel = state.categoryLabel?.trim() || null; // Capturamos la categoría
 
     const { error } = await supabase
       .from('modifiers')
-      .update({ name: trimmedName, price_delta: priceDelta, global_ingredient_id: globalIngId })
+      .update({ 
+        name: trimmedName, 
+        price_delta: priceDelta, 
+        global_ingredient_id: globalIngId, 
+        category_label: categoryLabel // Se envía a BD
+      })
       .eq('id', modifierId);
 
     if (!error) {
       setModifierGroups(modifierGroups.map((g) => g.id === groupId ? {
-        ...g, modifiers: g.modifiers?.map((m) => m.id === modifierId ? { ...m, name: trimmedName, price_delta: priceDelta, global_ingredient_id: globalIngId ?? undefined } : m)
+        ...g, modifiers: g.modifiers?.map((m) => m.id === modifierId ? { 
+          ...m, 
+          name: trimmedName, 
+          price_delta: priceDelta, 
+          global_ingredient_id: globalIngId ?? undefined, 
+          category_label: categoryLabel ?? undefined // Se actualiza la vista local
+        } : m)
       } : g));
       const copy = { ...editingModifierState };
       delete copy[modifierId];
       setEditingModifierState(copy);
     }
   };
-
   const executeDeleteModifier = async (groupId: string, modifierId: string) => {
     const { error } = await supabase.from('modifiers').delete().eq('id', modifierId);
     if (!error) {
@@ -710,7 +722,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
               ) : (
                 <div className="space-y-4">
                   {modifierGroups.map((group) => {
-                    const currentInput = modifierInputs[group.id] || { name: '', priceDelta: '' };
+                    const currentInput = modifierInputs[group.id] || { name: '', priceDelta: '', categoryLabel: '' };
                     const isEditingGroup = editingGroupState[group.id] !== undefined;
                     const groupEditName = editingGroupState[group.id] ?? group.name;
                     const suggestedIngredients = currentInput.name.trim().length > 0 
@@ -777,9 +789,13 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                         </div>
 
                         <div className="space-y-2 pl-3">
-                          {group.modifiers?.map((mod) => {
+                         {group.modifiers?.map((mod) => {
                             const isEditingThis = editingModifierState[mod.id] !== undefined;
-                            const modState = editingModifierState[mod.id] || { name: mod.name, priceDelta: mod.price_delta.toString() };
+                            const modState = editingModifierState[mod.id] || { 
+                              name: mod.name, 
+                              priceDelta: mod.price_delta.toString(), 
+                              categoryLabel: mod.category_label || '' 
+                            };
                             const globalLink = globalIngredients.find(g => g.id === mod.global_ingredient_id || g.name.toLowerCase() === mod.name.toLowerCase());
                             const isGlobalAgotado = globalLink && !globalLink.is_available;
 
@@ -789,6 +805,8 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                                   <div className="flex flex-1 gap-2 items-center">
                                     <input type="text" value={modState.name} onChange={(e) => setEditingModifierState({ ...editingModifierState, [mod.id]: { ...modState, name: e.target.value } })} className="flex-1 p-1 border rounded-lg text-xs" />
                                     <input type="number" step="0.5" value={modState.priceDelta} onChange={(e) => setEditingModifierState({ ...editingModifierState, [mod.id]: { ...modState, priceDelta: e.target.value } })} className="w-16 p-1 border rounded-lg text-xs" />
+                                    {/* NUEVO: Campo para editar la etiqueta de categoría */}
+                                    <input type="text" placeholder="Cat. (Ej. PICANTE)" value={modState.categoryLabel || ''} onChange={(e) => setEditingModifierState({ ...editingModifierState, [mod.id]: { ...modState, categoryLabel: e.target.value } })} className="w-24 p-1 border rounded-lg text-[10px] uppercase" />
                                     <button onClick={() => handleUpdateModifier(group.id, mod.id)} className="p-1 bg-emerald-600 text-white rounded-lg cursor-pointer"><Check className="w-3.5 h-3.5" /></button>
                                     <button onClick={() => { const copy = { ...editingModifierState }; delete copy[mod.id]; setEditingModifierState(copy); }} className="p-1 text-gray-400 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                                   </div>
@@ -796,10 +814,14 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                                   <>
                                     <div className="flex-1 flex flex-col">
                                       <span className={`${isGlobalAgotado ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{mod.name}</span>
+                                      {/* NUEVO: Muestra la etiqueta de categoría si existe */}
+                                      {mod.category_label && (
+                                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{mod.category_label}</span>
+                                      )}
                                     </div>
                                     <div className="flex items-center gap-3">
                                       <span className={`font-bold ${isGlobalAgotado ? 'text-gray-400 line-through' : 'text-emerald-600'}`}>{mod.price_delta > 0 ? `+$${mod.price_delta}` : '0.00'}</span>
-                                      <button onClick={() => setEditingModifierState({ ...editingModifierState, [mod.id]: { name: mod.name, priceDelta: mod.price_delta.toString() } })} className="text-gray-400 hover:text-emerald-600 cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>
+                                      <button onClick={() => setEditingModifierState({ ...editingModifierState, [mod.id]: { name: mod.name, priceDelta: mod.price_delta.toString(), categoryLabel: mod.category_label || '' } })} className="text-gray-400 hover:text-emerald-600 cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>
                                       <button onClick={() => handleDeleteModifier(group.id, mod.id, mod.name)} title="Eliminar de TODOS los platillos" className="text-gray-400 hover:text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
                                     </div>
                                   </>

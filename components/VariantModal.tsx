@@ -246,14 +246,23 @@ const handleSelectVariant = (variant: ProductVariant) => {
               Este producto no cuenta con opciones adicionales configuradas. Puedes agregarlo directamente.
             </div>
           ) : (
-            modifierGroups.map((group) => {
+modifierGroups.map((group) => {
               const currentList = Array.isArray(selectedModifiers[group.id]) ? selectedModifiers[group.id] : [];
               const modifiersList = group.modifiers || [];
               const dynamicMax = getDynamicMaxSelections(group, selectedVariant);
               const isSingle = dynamicMax === 1;
 
+              // AGRUPACIÓN DINÁMICA: Separar los modificadores por su categoría visual
+              const groupedModifiers = modifiersList.reduce((acc, mod) => {
+                // Si no tiene categoría, lo mandamos a un grupo vacío para que no pinte encabezado
+                const cat = mod.category_label?.trim() || '';
+                if (!acc[cat]) acc[cat] = [];
+                acc[cat].push(mod);
+                return acc;
+              }, {} as Record<string, Modifier[]>);
+
               return (
-                <div key={group.id} className="space-y-2">
+                <div key={group.id} className="space-y-4">
                   <div className="flex justify-between items-center">
                     <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">
                       {group.name} {dynamicMax > 1 && `(Máx. ${dynamicMax})`}
@@ -265,51 +274,65 @@ const handleSelectVariant = (variant: ProductVariant) => {
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    {modifiersList.map((modifier) => {
-                      const isSelected = currentList.some((mod) => mod.id === modifier.id);
-                      const isAvailable = modifier.is_available !== false && dynamicMax > 0;
+                  <div className="space-y-4">
+                    {Object.entries(groupedModifiers).map(([categoryName, mods], index) => (
+                      <div key={categoryName || index} className="space-y-2">
+                        
+                        {/* Mostrar encabezado de la subcategoría solo si existe (Ej. NO PICANTE) */}
+                        {categoryName && (
+                          <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1 mt-1">
+                            {categoryName}
+                          </h5>
+                        )}
 
-                      return (
-                        <button
-                          key={modifier.id}
-                          type="button"
-                          disabled={!isAvailable}
-                          onClick={() => handleSelectModifier(group, modifier)}
-                          className={`w-full flex items-center justify-between p-3 rounded-2xl border-2 text-left transition-all ${
-                            !isAvailable
-                              ? 'opacity-50 cursor-not-allowed bg-slate-50 border-slate-200'
-                              : isSelected
-                                ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-600/10 cursor-pointer'
-                                : 'border-slate-200 hover:border-slate-300 cursor-pointer bg-white'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`w-5 h-5 ${isSingle ? 'rounded-full' : 'rounded-lg'} border-2 flex items-center justify-center shrink-0 ${
-                                !isAvailable
-                                  ? 'border-slate-300 bg-slate-200'
-                                  : isSelected
-                                    ? 'border-emerald-600 bg-emerald-600 text-white'
-                                    : 'border-slate-300 bg-white'
-                              }`}
-                            >
-                              {isSelected && <Check className={`w-3.5 h-3.5 ${!isAvailable ? 'text-slate-400' : 'stroke-[3]'}`} />}
-                            </div>
-                            <span className={`font-bold text-sm ${!isAvailable ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
-                              {modifier.name}
-                            </span>
-                          </div>
-                          <span className={`font-black text-sm ${!isAvailable ? 'text-slate-400' : 'text-emerald-600'}`}>
-                            {!isAvailable 
-                              ? 'Agotado' 
-                              : (modifier.price_delta || 0) > 0 
-                                ? `+$${modifier.price_delta.toFixed(2)}` 
-                                : 'Incluido'}
-                          </span>
-                        </button>
-                      );
-                    })}
+                        <div className="space-y-2">
+                          {mods.map((modifier) => {
+                            const isSelected = currentList.some((mod) => mod.id === modifier.id);
+                            const isAvailable = modifier.is_available !== false && dynamicMax > 0;
+
+                            return (
+                              <button
+                                key={modifier.id}
+                                type="button"
+                                disabled={!isAvailable}
+                                onClick={() => handleSelectModifier(group, modifier)}
+                                className={`w-full flex items-center justify-between p-3 rounded-2xl border-2 text-left transition-all ${
+                                  !isAvailable
+                                    ? 'opacity-50 cursor-not-allowed bg-slate-50 border-slate-200'
+                                    : isSelected
+                                      ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-600/10 cursor-pointer'
+                                      : 'border-slate-200 hover:border-slate-300 cursor-pointer bg-white'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className={`w-5 h-5 ${isSingle ? 'rounded-full' : 'rounded-lg'} border-2 flex items-center justify-center shrink-0 ${
+                                      !isAvailable
+                                        ? 'border-slate-300 bg-slate-200'
+                                        : isSelected
+                                          ? 'border-emerald-600 bg-emerald-600 text-white'
+                                          : 'border-slate-300 bg-white'
+                                    }`}
+                                  >
+                                    {isSelected && <Check className={`w-3.5 h-3.5 ${!isAvailable ? 'text-slate-400' : 'stroke-[3]'}`} />}
+                                  </div>
+                                  <span className={`font-bold text-sm ${!isAvailable ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                                    {modifier.name}
+                                  </span>
+                                </div>
+                                <span className={`font-black text-sm ${!isAvailable ? 'text-slate-400' : 'text-emerald-600'}`}>
+                                  {!isAvailable 
+                                    ? 'Agotado' 
+                                    : (modifier.price_delta || 0) > 0 
+                                      ? `+$${modifier.price_delta.toFixed(2)}` 
+                                      : 'Incluido'}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
