@@ -70,7 +70,7 @@ export default function VariantModal({
   }
 
   // Manejador al cambiar de variante (recorta excesos si se reduce el límite)
-  const handleSelectVariant = (variant: ProductVariant) => {
+const handleSelectVariant = (variant: ProductVariant) => {
     setSelectedVariant(variant);
 
     setSelectedModifiers((prev) => {
@@ -79,8 +79,10 @@ export default function VariantModal({
         const newMax = getDynamicMaxSelections(group, variant);
         const currentList = updated[group.id] || [];
         
-        if (newMax === 1 && currentList.length === 0 && group.is_required && group.modifiers && group.modifiers.length > 0) {
-          // Si el nuevo límite es 1 y es obligatorio pero no tenía nada, autoseleccionamos el primero disponible
+        if (newMax === 0) {
+          // Si el límite es 0, vaciamos inmediatamente las selecciones
+          updated[group.id] = [];
+        } else if (newMax === 1 && currentList.length === 0 && group.is_required && group.modifiers && group.modifiers.length > 0) {
           const firstAvail = group.modifiers.find(m => m.is_available !== false);
           updated[group.id] = firstAvail ? [firstAvail] : [];
         } else if (currentList.length > newMax) {
@@ -93,12 +95,20 @@ export default function VariantModal({
 
   const isVariantsValid = variants.length === 0 || selectedVariant !== undefined;
   
-  const isModifiersValid = modifierGroups.every((group) => {
+    const isModifiersValid = modifierGroups.every((group) => {
+    const dynamicMax = getDynamicMaxSelections(group, selectedVariant);
+    
+    // Si la variante bloquea los extras (0), damos el grupo por válido automáticamente
+    if (dynamicMax === 0) return true;
+
     const selectedCount = Array.isArray(selectedModifiers[group.id]) 
       ? selectedModifiers[group.id].length 
       : 0;
+      
     const minReq = group.min_selections ?? (group.is_required ? 1 : 0);
-    return selectedCount >= minReq;
+    
+    // Validamos contra el requerimiento original, pero nunca pedimos más del máximo permitido
+    return selectedCount >= Math.min(minReq, dynamicMax);
   });
 
   const isFormValid = isVariantsValid && isModifiersValid;
@@ -258,7 +268,7 @@ export default function VariantModal({
                   <div className="space-y-2">
                     {modifiersList.map((modifier) => {
                       const isSelected = currentList.some((mod) => mod.id === modifier.id);
-                      const isAvailable = modifier.is_available !== false;
+                      const isAvailable = modifier.is_available !== false && dynamicMax > 0;
 
                       return (
                         <button

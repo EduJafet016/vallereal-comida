@@ -175,10 +175,12 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
   };
 
   // --- GESTIÓN DE VARIANTES ---
-  const handleAddVariant = async () => {
+    const handleAddVariant = async () => {
     if (!newVariantName.trim() || !newVariantPrice.trim()) return;
 
-    const maxMods = parseInt(newVariantMaxMods) || 1;
+    // Validación estricta para aceptar el 0
+    const parsedMax = parseInt(newVariantMaxMods, 10);
+    const maxMods = isNaN(parsedMax) ? 1 : parsedMax;
 
     const { data, error } = await supabase
       .from('product_variants')
@@ -203,14 +205,17 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     }
   };
 
-  const handleUpdateVariant = async (variantId: string) => {
+    const handleUpdateVariant = async (variantId: string) => {
     const state = editingVariantState[variantId];
     const maxModsState = editingVariantMaxModsState[variantId];
     if (!state || !state.name.trim()) return;
 
     const trimmedName = state.name.trim();
     const priceOverride = parseFloat(state.price) || 0;
-    const maxMods = maxModsState !== undefined ? (parseInt(maxModsState) || 1) : undefined;
+    
+    // Validación estricta para la actualización
+    const parsedStateMax = maxModsState !== undefined ? parseInt(maxModsState, 10) : NaN;
+    const maxMods = isNaN(parsedStateMax) ? undefined : parsedStateMax;
 
     const updatePayload: { name: string; price_override: number; max_modifier_selections?: number } = { 
       name: trimmedName, 
