@@ -38,7 +38,6 @@ export interface Category {
   sort_order: number;
 }
 
-// Interfaz única y unificada de ProductVariant
 export interface ProductVariant {
   id: string;
   product_id: string;
@@ -58,7 +57,13 @@ export interface TenantIngredient {
   created_at?: string;
 }
 
-// Sistema profesional de modificadores y extras
+export interface ModifierCategory {
+  id: string;
+  tenant_id: string;
+  name: string;
+}
+
+// === Sistema profesional de modificadores y extras ===
 export interface Modifier {
   id: string;
   group_id: string;
@@ -66,6 +71,8 @@ export interface Modifier {
   price_delta: number;
   is_available: boolean;
   global_ingredient_id?: string;
+  category_id?: string;
+  modifier_categories?: { name: string };
   created_at?: string;
 }
 
@@ -95,6 +102,7 @@ export interface Product {
   modifier_groups?: ModifierGroup[]; 
 }
 
+// === Carrito e interfaces extendidas ===
 export interface CartItem {
   product: Product;
   selectedVariant?: ProductVariant;
@@ -113,14 +121,3 @@ export type TenantWithMenu = Tenant & {
   categories?: Pick<Category, 'name'>[];
   logo_url?: string | null;
 };
-
-export interface Modifier {
-  id: string;
-  group_id: string;
-  name: string;
-  price_delta: number;
-  is_available: boolean;
-  global_ingredient_id?: string;
-  category_label?: string; // <-- NUEVO: Etiqueta para agrupar visualmente
-  created_at?: string;
-}

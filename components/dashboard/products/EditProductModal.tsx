@@ -32,14 +32,21 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
   const [selectedGlobalGroupId, setSelectedGlobalGroupId] = useState('');
   
   const [globalIngredients, setGlobalIngredients] = useState<TenantIngredient[]>([]);
+  
+  // Categorías globales para el autocompletado custom
+  const [tenantCategories, setTenantCategories] = useState<{ id: string, name: string }[]>([]);
+
   const [loadingModifiers, setLoadingModifiers] = useState(true);
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  
+  // Estados para manejar los menús desplegables (Dropdowns)
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null); // Para ingredientes nuevos
+  const [activeCatDropdown, setActiveCatDropdown] = useState<string | null>(null); // Para categorías nuevas
+  const [activeEditCatDropdown, setActiveEditCatDropdown] = useState<string | null>(null); // Para editar categorías
 
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupMin, setNewGroupMin] = useState(0);
   const [newGroupMax, setNewGroupMax] = useState(0);
   
-  // ESTADOS ACTUALIZADOS PARA LA CATEGORÍA
   const [modifierInputs, setModifierInputs] = useState<Record<string, { name: string; priceDelta: string; categoryLabel: string }>>({});
   const [editingModifierState, setEditingModifierState] = useState<Record<string, { name: string; priceDelta: string; categoryLabel?: string }>>({});
   const [editingGroupState, setEditingGroupState] = useState<Record<string, string>>({});
@@ -76,6 +83,8 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     setEditingModifierState({});
     setEditingGroupState({});
     setActiveDropdown(null);
+    setActiveCatDropdown(null);
+    setActiveEditCatDropdown(null);
     setNewGroupName('');
     setNewGroupMin(0);
     setNewGroupMax(0);
@@ -92,7 +101,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     async function loadData() {
       const linkedGroupsPromise = supabase
         .from('product_modifier_groups')
-        .select('modifier_groups(*, modifiers(*))')
+        .select('modifier_groups(*, modifiers(*, modifier_categories(name)))')
         .eq('product_id', productId);
 
       const allGroupsPromise = supabase
@@ -112,11 +121,17 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
         .eq('product_id', productId)
         .order('created_at', { ascending: true });
 
-      const [linkedRes, allGroupsRes, ingredientsRes, variantsRes] = await Promise.all([
+      const categoriesPromise = supabase
+        .from('modifier_categories')
+        .select('id, name')
+        .eq('tenant_id', tenantId);
+
+      const [linkedRes, allGroupsRes, ingredientsRes, variantsRes, catRes] = await Promise.all([
         linkedGroupsPromise, 
         allGroupsPromise, 
         ingredientsPromise,
-        variantsPromise
+        variantsPromise,
+        categoriesPromise
       ]);
 
       if (isMounted) {
@@ -141,6 +156,9 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
         }
         if (!variantsRes.error && variantsRes.data) {
           setVariants(variantsRes.data);
+        }
+        if (!catRes.error && catRes.data) {
+          setTenantCategories(catRes.data);
         }
         setLoadingModifiers(false);
       }
@@ -271,7 +289,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     if (!linkError) {
       const { data: groupData } = await supabase
         .from('modifier_groups')
-        .select('*, modifiers(*)')
+        .select('*, modifiers(*, modifier_categories(name))')
         .eq('id', selectedGlobalGroupId)
         .single();
       
@@ -379,7 +397,30 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     return null;
   };
 
-  // AGREGAR MODIFICADOR CON CATEGORÍA
+  const resolveModifierCategory = async (name: string): Promise<string | null> => {
+    if (!name || !name.trim()) return null;
+    const trimmed = name.trim().toUpperCase();
+    
+    const existing = tenantCategories.find(c => c.name.toUpperCase() === trimmed);
+    if (existing) return existing.id;
+
+    const { data, error } = await supabase
+      .from('modifier_categories')
+      .insert([{ tenant_id: tenant.id, name: trimmed }])
+      .select('id, name').single();
+    
+    if (error) {
+      console.error("Error SQL al crear categoría:", error);
+      return null;
+    }
+
+    if (data) {
+      setTenantCategories(prev => [...prev, data]);
+      return data.id;
+    }
+    return null;
+  };
+
   const handleAddModifier = async (groupId: string) => {
     const input = modifierInputs[groupId];
     if (!input || !input.name.trim()) return;
@@ -387,7 +428,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     const trimmedName = input.name.trim();
     const priceDelta = parseFloat(input.priceDelta) || 0;
     const globalIngId = await resolveGlobalIngredient(trimmedName);
-    const categoryLabel = input.categoryLabel?.trim() || null;
+    const categoryId = await resolveModifierCategory(input.categoryLabel || '');
 
     const { data, error } = await supabase
       .from('modifiers')
@@ -397,19 +438,26 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
         price_delta: priceDelta,
         is_available: true,
         global_ingredient_id: globalIngId,
-        category_label: categoryLabel
+        category_id: categoryId
       }])
-      .select().single();
+      .select('*, modifier_categories(name)').single();
 
     if (!error && data) {
-      const newModSafelyTyped: Modifier = { ...data, global_ingredient_id: data.global_ingredient_id ?? undefined };
+      const resolvedCatName = tenantCategories.find(c => c.id === categoryId)?.name || input.categoryLabel?.trim().toUpperCase();
+
+      const newModSafelyTyped: Modifier = { 
+        ...data, 
+        global_ingredient_id: data.global_ingredient_id ?? undefined,
+        modifier_categories: resolvedCatName ? { name: resolvedCatName } : undefined
+      };
+      
       setModifierGroups(modifierGroups.map((g) => g.id === groupId ? { ...g, modifiers: [...(g.modifiers || []), newModSafelyTyped] } : g));
       setModifierInputs({ ...modifierInputs, [groupId]: { name: '', priceDelta: '', categoryLabel: '' } });
       setActiveDropdown(null);
+      setActiveCatDropdown(null);
     }
   };
 
-  // ACTUALIZAR MODIFICADOR CON CATEGORÍA
   const handleUpdateModifier = async (groupId: string, modifierId: string) => {
     const state = editingModifierState[modifierId];
     if (!state || !state.name.trim()) return;
@@ -417,7 +465,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     const trimmedName = state.name.trim();
     const priceDelta = parseFloat(state.priceDelta) || 0;
     const globalIngId = await resolveGlobalIngredient(trimmedName);
-    const categoryLabel = state.categoryLabel?.trim() || null;
+    const categoryId = await resolveModifierCategory(state.categoryLabel || '');
 
     const { error } = await supabase
       .from('modifiers')
@@ -425,23 +473,28 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
         name: trimmedName, 
         price_delta: priceDelta, 
         global_ingredient_id: globalIngId,
-        category_label: categoryLabel
+        category_id: categoryId
       })
       .eq('id', modifierId);
 
     if (!error) {
+      const resolvedCatName = tenantCategories.find(c => c.id === categoryId)?.name || state.categoryLabel?.trim().toUpperCase();
+      
       setModifierGroups(modifierGroups.map((g) => g.id === groupId ? {
         ...g, modifiers: g.modifiers?.map((m) => m.id === modifierId ? { 
           ...m, 
           name: trimmedName, 
           price_delta: priceDelta, 
           global_ingredient_id: globalIngId ?? undefined,
-          category_label: categoryLabel ?? undefined
+          category_id: categoryId ?? undefined,
+          modifier_categories: resolvedCatName ? { name: resolvedCatName } : undefined
         } : m)
       } : g));
+      
       const copy = { ...editingModifierState };
       delete copy[modifierId];
       setEditingModifierState(copy);
+      setActiveEditCatDropdown(null);
     }
   };
 
@@ -697,13 +750,19 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
               ) : (
                 <div className="space-y-4">
                   {modifierGroups.map((group) => {
-                    // AQUÍ ESTÁ EL currentInput CORRECTO CON LA CATEGORÍA INCLUIDA
                     const currentInput = modifierInputs[group.id] || { name: '', priceDelta: '', categoryLabel: '' };
                     const isEditingGroup = editingGroupState[group.id] !== undefined;
                     const groupEditName = editingGroupState[group.id] ?? group.name;
+                    
                     const suggestedIngredients = currentInput.name.trim().length > 0 
                       ? globalIngredients.filter(g => g.name.toLowerCase().includes(currentInput.name.toLowerCase()))
                       : [];
+
+                    // Sugerencias Custom para la barra de Agregar Nuevo Modificador (con Type Safety)
+                    const safeAddCatLabel = currentInput.categoryLabel || '';
+                    const suggestedCategoriesForAdd = safeAddCatLabel.trim().length > 0
+                      ? tenantCategories.filter(c => c.name.toLowerCase().includes(safeAddCatLabel.toLowerCase()))
+                      : tenantCategories;
 
                     return (
                       <div key={group.id} className="p-3.5 bg-white border rounded-2xl shadow-sm space-y-3 relative">
@@ -761,24 +820,58 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                         </div>
 
                         <div className="space-y-2 pl-3">
-                          {/* LISTA DE MODIFICADORES EXISTENTES CON EDICIÓN DE CATEGORÍA */}
+                          {/* LISTA DE MODIFICADORES EXISTENTES */}
                           {group.modifiers?.map((mod) => {
+                            const displayCategory = mod.modifier_categories?.name || '';
+                            
                             const isEditingThis = editingModifierState[mod.id] !== undefined;
                             const modState = editingModifierState[mod.id] || { 
                               name: mod.name, 
                               priceDelta: mod.price_delta.toString(), 
-                              categoryLabel: mod.category_label || '' 
+                              categoryLabel: displayCategory 
                             };
                             const globalLink = globalIngredients.find(g => g.id === mod.global_ingredient_id || g.name.toLowerCase() === mod.name.toLowerCase());
                             const isGlobalAgotado = globalLink && !globalLink.is_available;
 
+                            // Sugerencias Custom para la barra de Edición de Modificador (con Type Safety)
+                            const safeEditCatLabel = modState.categoryLabel || '';
+                            const suggestedCategoriesForEdit = safeEditCatLabel.trim().length > 0
+                              ? tenantCategories.filter(c => c.name.toLowerCase().includes(safeEditCatLabel.toLowerCase()))
+                              : tenantCategories;
+
                             return (
-                              <div key={mod.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-xl border text-xs gap-2">
+                              <div key={mod.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-xl border text-xs gap-2 relative">
                                 {isEditingThis ? (
                                   <div className="flex flex-1 gap-2 items-center">
                                     <input type="text" value={modState.name} onChange={(e) => setEditingModifierState({ ...editingModifierState, [mod.id]: { ...modState, name: e.target.value } })} className="flex-1 p-1 border rounded-lg text-xs" />
                                     <input type="number" step="0.5" value={modState.priceDelta} onChange={(e) => setEditingModifierState({ ...editingModifierState, [mod.id]: { ...modState, priceDelta: e.target.value } })} className="w-16 p-1 border rounded-lg text-xs" />
-                                    <input type="text" placeholder="Cat. (Ej. PICANTE)" value={modState.categoryLabel || ''} onChange={(e) => setEditingModifierState({ ...editingModifierState, [mod.id]: { ...modState, categoryLabel: e.target.value } })} className="w-24 p-1 border rounded-lg text-[10px] uppercase" />
+                                    
+                                    {/* DROPDOWN CUSTOM EN EDICIÓN */}
+                                    <div className="w-24 relative shrink-0">
+                                      <input 
+                                        type="text" 
+                                        placeholder="Cat." 
+                                        value={modState.categoryLabel || ''} 
+                                        onFocus={() => setActiveEditCatDropdown(mod.id)}
+                                        onBlur={() => setTimeout(() => setActiveEditCatDropdown(null), 200)}
+                                        onChange={(e) => setEditingModifierState({ ...editingModifierState, [mod.id]: { ...modState, categoryLabel: e.target.value } })} 
+                                        className="w-full p-1 border rounded-lg text-[10px] uppercase focus:outline-emerald-500" 
+                                      />
+                                      {activeEditCatDropdown === mod.id && suggestedCategoriesForEdit.length > 0 && (
+                                        <div className="absolute z-50 bottom-full left-0 w-max min-w-full mb-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-32 overflow-y-auto">
+                                          {suggestedCategoriesForEdit.map(cat => (
+                                            <div 
+                                              key={cat.id} 
+                                              onClick={() => setEditingModifierState({ ...editingModifierState, [mod.id]: { ...modState, categoryLabel: cat.name } })} 
+                                              className="p-2 hover:bg-emerald-50 text-[10px] uppercase font-bold text-gray-700 cursor-pointer border-b last:border-b-0"
+                                            >
+                                              {cat.name}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+
                                     <button onClick={() => handleUpdateModifier(group.id, mod.id)} className="p-1 bg-emerald-600 text-white rounded-lg cursor-pointer"><Check className="w-3.5 h-3.5" /></button>
                                     <button onClick={() => { const copy = { ...editingModifierState }; delete copy[mod.id]; setEditingModifierState(copy); }} className="p-1 text-gray-400 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
                                   </div>
@@ -786,13 +879,13 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                                   <>
                                     <div className="flex-1 flex flex-col">
                                       <span className={`${isGlobalAgotado ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{mod.name}</span>
-                                      {mod.category_label && (
-                                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{mod.category_label}</span>
+                                      {displayCategory && (
+                                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{displayCategory}</span>
                                       )}
                                     </div>
                                     <div className="flex items-center gap-3">
                                       <span className={`font-bold ${isGlobalAgotado ? 'text-gray-400 line-through' : 'text-emerald-600'}`}>{mod.price_delta > 0 ? `+$${mod.price_delta}` : '0.00'}</span>
-                                      <button onClick={() => setEditingModifierState({ ...editingModifierState, [mod.id]: { name: mod.name, priceDelta: mod.price_delta.toString(), categoryLabel: mod.category_label || '' } })} className="text-gray-400 hover:text-emerald-600 cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>
+                                      <button onClick={() => setEditingModifierState({ ...editingModifierState, [mod.id]: { name: mod.name, priceDelta: mod.price_delta.toString(), categoryLabel: displayCategory } })} className="text-gray-400 hover:text-emerald-600 cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>
                                       <button onClick={() => handleDeleteModifier(group.id, mod.id, mod.name)} title="Eliminar de TODOS los platillos" className="text-gray-400 hover:text-red-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
                                     </div>
                                   </>
@@ -832,13 +925,33 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
                               onChange={(e) => setModifierInputs({ ...modifierInputs, [group.id]: { ...currentInput, priceDelta: e.target.value } })} 
                               className="w-16 p-2 border rounded-xl text-xs bg-white focus:outline-emerald-500" 
                             />
-                            <input
-                              type="text"
-                              placeholder="Categoría (Ej. PICANTE)"
-                              value={currentInput.categoryLabel || ''}
-                              onChange={(e) => setModifierInputs({ ...modifierInputs, [group.id]: { ...currentInput, categoryLabel: e.target.value } })}
-                              className="w-24 p-2 border rounded-xl text-[10px] bg-white text-gray-900 uppercase focus:outline-emerald-500"
-                            />
+                            
+                            {/* DROPDOWN CUSTOM PARA AGREGAR */}
+                            <div className="w-24 relative shrink-0">
+                              <input
+                                type="text"
+                                placeholder="Categoría"
+                                value={currentInput.categoryLabel || ''}
+                                onFocus={() => setActiveCatDropdown(group.id)}
+                                onBlur={() => setTimeout(() => setActiveCatDropdown(null), 200)}
+                                onChange={(e) => setModifierInputs({ ...modifierInputs, [group.id]: { ...currentInput, categoryLabel: e.target.value } })}
+                                className="w-full p-2 border rounded-xl text-[10px] bg-white text-gray-900 uppercase focus:outline-emerald-500"
+                              />
+                              {activeCatDropdown === group.id && suggestedCategoriesForAdd.length > 0 && (
+                                <div className="absolute z-50 bottom-full left-0 w-max min-w-full mb-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-32 overflow-y-auto">
+                                  {suggestedCategoriesForAdd.map(cat => (
+                                    <div 
+                                      key={cat.id} 
+                                      onClick={() => setModifierInputs({ ...modifierInputs, [group.id]: { ...currentInput, categoryLabel: cat.name } })} 
+                                      className="p-2 hover:bg-emerald-50 text-[10px] uppercase font-bold text-gray-700 cursor-pointer border-b last:border-b-0"
+                                    >
+                                      {cat.name}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
                             <button 
                               type="button" 
                               onClick={() => handleAddModifier(group.id)} 

@@ -255,10 +255,10 @@ export default function VariantModal({
               // Abortar renderizado en el Virtual DOM si la variante no permite extras
               if (dynamicMax === 0) return null;
 
-              // AGRUPACIÓN DINÁMICA: Separar los modificadores por su categoría visual
+              // AGRUPACIÓN DINÁMICA ESTRICTA: Separar por el nombre del catálogo relacional
               const groupedModifiers = modifiersList.reduce((acc, mod) => {
-                // Si no tiene categoría, lo mandamos a un grupo vacío para que no pinte encabezado
-                const cat = mod.category_label?.trim() || '';
+                // Navegamos al objeto relacional modifier_categories que trae Supabase
+                const cat = mod.modifier_categories?.name?.trim() || '';
                 if (!acc[cat]) acc[cat] = [];
                 acc[cat].push(mod);
                 return acc;
