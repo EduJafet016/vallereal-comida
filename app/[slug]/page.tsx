@@ -61,7 +61,8 @@ export default async function TenantPage({ params }: Props) {
               name,
               price_delta,
               is_available,
-              global_ingredient_id
+              global_ingredient_id,
+              category_label
             )
           )
         )

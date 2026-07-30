@@ -70,7 +70,7 @@ export default function VariantModal({
   }
 
   // Manejador al cambiar de variante (recorta excesos si se reduce el límite)
-const handleSelectVariant = (variant: ProductVariant) => {
+  const handleSelectVariant = (variant: ProductVariant) => {
     setSelectedVariant(variant);
 
     setSelectedModifiers((prev) => {
@@ -95,7 +95,7 @@ const handleSelectVariant = (variant: ProductVariant) => {
 
   const isVariantsValid = variants.length === 0 || selectedVariant !== undefined;
   
-    const isModifiersValid = modifierGroups.every((group) => {
+  const isModifiersValid = modifierGroups.every((group) => {
     const dynamicMax = getDynamicMaxSelections(group, selectedVariant);
     
     // Si la variante bloquea los extras (0), damos el grupo por válido automáticamente
@@ -246,11 +246,14 @@ const handleSelectVariant = (variant: ProductVariant) => {
               Este producto no cuenta con opciones adicionales configuradas. Puedes agregarlo directamente.
             </div>
           ) : (
-modifierGroups.map((group) => {
+            modifierGroups.map((group) => {
               const currentList = Array.isArray(selectedModifiers[group.id]) ? selectedModifiers[group.id] : [];
               const modifiersList = group.modifiers || [];
               const dynamicMax = getDynamicMaxSelections(group, selectedVariant);
               const isSingle = dynamicMax === 1;
+
+              // Abortar renderizado en el Virtual DOM si la variante no permite extras
+              if (dynamicMax === 0) return null;
 
               // AGRUPACIÓN DINÁMICA: Separar los modificadores por su categoría visual
               const groupedModifiers = modifiersList.reduce((acc, mod) => {

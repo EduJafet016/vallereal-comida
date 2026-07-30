@@ -19,16 +19,14 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
   const [editProdDesc, setEditProdDesc] = useState(product?.description || '');
   const [savingProduct, setSavingProduct] = useState(false);
 
-  // Estados para Variantes (Tamaños/Porciones)
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [newVariantName, setNewVariantName] = useState('');
   const [newVariantPrice, setNewVariantPrice] = useState('');
-  const [newVariantMaxMods, setNewVariantMaxMods] = useState(''); // <-- Nuevo: Límite de extras
+  const [newVariantMaxMods, setNewVariantMaxMods] = useState(''); 
   
   const [editingVariantState, setEditingVariantState] = useState<Record<string, { name: string; price: string }>>({});
-  const [editingVariantMaxModsState, setEditingVariantMaxModsState] = useState<Record<string, string>>({}); // <-- Nuevo: Edición de límite
+  const [editingVariantMaxModsState, setEditingVariantMaxModsState] = useState<Record<string, string>>({});
 
-  // Estados para Grupos y Modificadores
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
   const [tenantGroups, setTenantGroups] = useState<{ id: string, name: string }[]>([]); 
   const [selectedGlobalGroupId, setSelectedGlobalGroupId] = useState('');
@@ -41,6 +39,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
   const [newGroupMin, setNewGroupMin] = useState(0);
   const [newGroupMax, setNewGroupMax] = useState(0);
   
+  // ESTADOS ACTUALIZADOS PARA LA CATEGORÍA
   const [modifierInputs, setModifierInputs] = useState<Record<string, { name: string; priceDelta: string; categoryLabel: string }>>({});
   const [editingModifierState, setEditingModifierState] = useState<Record<string, { name: string; priceDelta: string; categoryLabel?: string }>>({});
   const [editingGroupState, setEditingGroupState] = useState<Record<string, string>>({});
@@ -57,7 +56,6 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     onConfirm: () => {},
   });
 
-  // --- LÓGICA: Sincronización Segura ---
   const [prevProductId, setPrevProductId] = useState<string | undefined>(product?.id);
 
   if (product && product.id !== prevProductId) {
@@ -84,7 +82,6 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     setSelectedGlobalGroupId('');
   }
 
-  // Carga de datos de la Base de Datos
   useEffect(() => {
     if (!product) return;
 
@@ -174,11 +171,9 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     setSavingProduct(false);
   };
 
-  // --- GESTIÓN DE VARIANTES ---
-    const handleAddVariant = async () => {
+  const handleAddVariant = async () => {
     if (!newVariantName.trim() || !newVariantPrice.trim()) return;
 
-    // Validación estricta para aceptar el 0
     const parsedMax = parseInt(newVariantMaxMods, 10);
     const maxMods = isNaN(parsedMax) ? 1 : parsedMax;
 
@@ -199,13 +194,10 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
       setNewVariantName('');
       setNewVariantPrice('');
       setNewVariantMaxMods('');
-    } else {
-      console.error("Error detallado de Supabase:", error);
-      alert(`Error al agregar variante: ${error?.message || 'Desconocido'}`);
     }
   };
 
-    const handleUpdateVariant = async (variantId: string) => {
+  const handleUpdateVariant = async (variantId: string) => {
     const state = editingVariantState[variantId];
     const maxModsState = editingVariantMaxModsState[variantId];
     if (!state || !state.name.trim()) return;
@@ -213,7 +205,6 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     const trimmedName = state.name.trim();
     const priceOverride = parseFloat(state.price) || 0;
     
-    // Validación estricta para la actualización
     const parsedStateMax = maxModsState !== undefined ? parseInt(maxModsState, 10) : NaN;
     const maxMods = isNaN(parsedStateMax) ? undefined : parsedStateMax;
 
@@ -263,7 +254,6 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     });
   };
 
-  // --- GESTIÓN DE GRUPOS ---
   const handleLinkGroup = async () => {
     if (!selectedGlobalGroupId) return;
     
@@ -289,8 +279,6 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
         setModifierGroups([...modifierGroups, groupData as ModifierGroup]);
         setSelectedGlobalGroupId('');
       }
-    } else {
-      alert("Hubo un error al vincular el grupo.");
     }
   };
 
@@ -374,7 +362,6 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     });
   };
 
-  // --- GESTIÓN DE MODIFICADORES ---
   const resolveGlobalIngredient = async (name: string): Promise<string | null> => {
     const trimmed = name.trim();
     const existing = globalIngredients.find(g => g.name.toLowerCase() === trimmed.toLowerCase());
@@ -392,50 +379,53 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     return null;
   };
 
-const handleAddModifier = async (groupId: string) => {
-  const input = modifierInputs[groupId];
-  if (!input || !input.name.trim()) return;
+  // AGREGAR MODIFICADOR CON CATEGORÍA
+  const handleAddModifier = async (groupId: string) => {
+    const input = modifierInputs[groupId];
+    if (!input || !input.name.trim()) return;
 
-  const trimmedName = input.name.trim();
-  const priceDelta = parseFloat(input.priceDelta) || 0;
-  const globalIngId = await resolveGlobalIngredient(trimmedName);
+    const trimmedName = input.name.trim();
+    const priceDelta = parseFloat(input.priceDelta) || 0;
+    const globalIngId = await resolveGlobalIngredient(trimmedName);
+    const categoryLabel = input.categoryLabel?.trim() || null;
 
-  const { data, error } = await supabase
-    .from('modifiers')
-    .insert([{
-      group_id: groupId,
-      name: trimmedName,
-      price_delta: priceDelta,
-      is_available: true,
-      global_ingredient_id: globalIngId,
-      category_label: input.categoryLabel?.trim() || null
-    }])
-    .select().single();
+    const { data, error } = await supabase
+      .from('modifiers')
+      .insert([{
+        group_id: groupId,
+        name: trimmedName,
+        price_delta: priceDelta,
+        is_available: true,
+        global_ingredient_id: globalIngId,
+        category_label: categoryLabel
+      }])
+      .select().single();
 
-  if (!error && data) {
-    const newModSafelyTyped: Modifier = { ...data, global_ingredient_id: data.global_ingredient_id ?? undefined };
-    setModifierGroups(modifierGroups.map((g) => g.id === groupId ? { ...g, modifiers: [...(g.modifiers || []), newModSafelyTyped] } : g));
-    setModifierInputs({ ...modifierInputs, [groupId]: { name: '', priceDelta: '', categoryLabel: '' } });
-    setActiveDropdown(null);
-  }
-};
+    if (!error && data) {
+      const newModSafelyTyped: Modifier = { ...data, global_ingredient_id: data.global_ingredient_id ?? undefined };
+      setModifierGroups(modifierGroups.map((g) => g.id === groupId ? { ...g, modifiers: [...(g.modifiers || []), newModSafelyTyped] } : g));
+      setModifierInputs({ ...modifierInputs, [groupId]: { name: '', priceDelta: '', categoryLabel: '' } });
+      setActiveDropdown(null);
+    }
+  };
 
-const handleUpdateModifier = async (groupId: string, modifierId: string) => {
+  // ACTUALIZAR MODIFICADOR CON CATEGORÍA
+  const handleUpdateModifier = async (groupId: string, modifierId: string) => {
     const state = editingModifierState[modifierId];
     if (!state || !state.name.trim()) return;
 
     const trimmedName = state.name.trim();
     const priceDelta = parseFloat(state.priceDelta) || 0;
     const globalIngId = await resolveGlobalIngredient(trimmedName);
-    const categoryLabel = state.categoryLabel?.trim() || null; // Capturamos la categoría
+    const categoryLabel = state.categoryLabel?.trim() || null;
 
     const { error } = await supabase
       .from('modifiers')
       .update({ 
         name: trimmedName, 
         price_delta: priceDelta, 
-        global_ingredient_id: globalIngId, 
-        category_label: categoryLabel // Se envía a BD
+        global_ingredient_id: globalIngId,
+        category_label: categoryLabel
       })
       .eq('id', modifierId);
 
@@ -445,8 +435,8 @@ const handleUpdateModifier = async (groupId: string, modifierId: string) => {
           ...m, 
           name: trimmedName, 
           price_delta: priceDelta, 
-          global_ingredient_id: globalIngId ?? undefined, 
-          category_label: categoryLabel ?? undefined // Se actualiza la vista local
+          global_ingredient_id: globalIngId ?? undefined,
+          category_label: categoryLabel ?? undefined
         } : m)
       } : g));
       const copy = { ...editingModifierState };
@@ -454,6 +444,7 @@ const handleUpdateModifier = async (groupId: string, modifierId: string) => {
       setEditingModifierState(copy);
     }
   };
+
   const executeDeleteModifier = async (groupId: string, modifierId: string) => {
     const { error } = await supabase.from('modifiers').delete().eq('id', modifierId);
     if (!error) {
@@ -538,15 +529,8 @@ const handleUpdateModifier = async (groupId: string, modifierId: string) => {
               </button>
             </form>
 
-            {/* ======================================================== */}
-            {/* SECCIÓN DE VARIANTES / TAMAÑOS (AHORA CON MÁX EXTRAS)    */}
-            {/* ======================================================== */}
             <div className="space-y-3 pt-2 border-t">
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">Variantes y Tamaños (Opcional)</h4>
-              <p className="text-[11px] text-gray-500 leading-relaxed">
-                Si este platillo se vende por tamaños u opciones con diferente precio (ej. &quot;Orden de 3&quot;, &quot;Orden de 5&quot;), agrégalas aquí. Si dejas esto vacío, el platillo usará el precio base general.
-              </p>
-
               <div className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
                 <div className="flex gap-2">
                   <input
@@ -568,9 +552,8 @@ const handleUpdateModifier = async (groupId: string, modifierId: string) => {
                   />
                   <input
                     type="number"
-                    min="1"
+                    min="0"
                     placeholder="Máx. extras"
-                    title="Cantidad máxima de ingredientes/salsas permitidas para esta variante"
                     value={newVariantMaxMods}
                     onChange={(e) => setNewVariantMaxMods(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddVariant()}
@@ -613,10 +596,9 @@ const handleUpdateModifier = async (groupId: string, modifierId: string) => {
                             />
                             <input
                               type="number"
-                              min="1"
+                              min="0"
                               value={vMaxMods}
                               placeholder="Máx"
-                              title="Máx extras"
                               onChange={(e) => setEditingVariantMaxModsState({ ...editingVariantMaxModsState, [variant.id]: e.target.value })}
                               className="w-16 p-1.5 border rounded-lg text-xs font-medium text-gray-900"
                             />
@@ -648,22 +630,17 @@ const handleUpdateModifier = async (groupId: string, modifierId: string) => {
               )}
             </div>
 
-            {/* ======================================================== */}
-            {/* SECCIÓN DE GRUPOS DE OPCIONES GLOBALES (Modificadores)   */}
-            {/* ======================================================== */}
             <div className="space-y-3 pt-2 border-t">
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">Grupos de Opciones Globales</h4>
               
               <div className="space-y-4 bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100">
-                
-                {/* 1. SECCIÓN VINCULAR GRUPO EXISTENTE */}
                 <div className="flex gap-2">
                   <select
                     value={selectedGlobalGroupId}
                     onChange={(e) => setSelectedGlobalGroupId(e.target.value)}
                     className="flex-1 p-2 bg-white border rounded-xl text-xs font-medium text-gray-900 focus:outline-emerald-500 cursor-pointer"
                   >
-                    <option value="">-- Vincular grupo existente (Ej. Proteínas) --</option>
+                    <option value="">-- Vincular grupo existente --</option>
                     {tenantGroups.map(g => (
                       <option key={`opt-${g.id}`} value={g.id} disabled={modifierGroups.some(mg => mg.id === g.id)}>
                         {g.name} {modifierGroups.some(mg => mg.id === g.id) ? '(Ya vinculado)' : ''}
@@ -686,7 +663,6 @@ const handleUpdateModifier = async (groupId: string, modifierId: string) => {
                   <div className="h-px bg-emerald-700 flex-1"></div>
                 </div>
 
-                {/* 2. SECCIÓN CREAR GRUPO NUEVO */}
                 <div className="space-y-2">
                   <input
                     type="text"
@@ -712,7 +688,6 @@ const handleUpdateModifier = async (groupId: string, modifierId: string) => {
                     </button>
                   </div>
                 </div>
-
               </div>
 
               {loadingModifiers ? (
@@ -722,6 +697,7 @@ const handleUpdateModifier = async (groupId: string, modifierId: string) => {
               ) : (
                 <div className="space-y-4">
                   {modifierGroups.map((group) => {
+                    // AQUÍ ESTÁ EL currentInput CORRECTO CON LA CATEGORÍA INCLUIDA
                     const currentInput = modifierInputs[group.id] || { name: '', priceDelta: '', categoryLabel: '' };
                     const isEditingGroup = editingGroupState[group.id] !== undefined;
                     const groupEditName = editingGroupState[group.id] ?? group.name;
@@ -762,9 +738,7 @@ const handleUpdateModifier = async (groupId: string, modifierId: string) => {
 
                         <div className="flex gap-3 bg-gray-50 p-2 rounded-xl border border-gray-100 ml-2">
                           <div className="flex-1">
-                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">
-                              Mín {group.min_selections === 0 ? '(Opcional)' : '(Obligatorio)'}
-                            </label>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">Mín</label>
                             <input
                               type="number"
                               min="0"
@@ -774,9 +748,7 @@ const handleUpdateModifier = async (groupId: string, modifierId: string) => {
                             />
                           </div>
                           <div className="flex-1">
-                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">
-                              Máx (0 = Sin límite)
-                            </label>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-0.5">Máx (0 = Sin límite)</label>
                             <input
                               type="number"
                               min="0"
@@ -789,7 +761,8 @@ const handleUpdateModifier = async (groupId: string, modifierId: string) => {
                         </div>
 
                         <div className="space-y-2 pl-3">
-                         {group.modifiers?.map((mod) => {
+                          {/* LISTA DE MODIFICADORES EXISTENTES CON EDICIÓN DE CATEGORÍA */}
+                          {group.modifiers?.map((mod) => {
                             const isEditingThis = editingModifierState[mod.id] !== undefined;
                             const modState = editingModifierState[mod.id] || { 
                               name: mod.name, 
@@ -805,7 +778,6 @@ const handleUpdateModifier = async (groupId: string, modifierId: string) => {
                                   <div className="flex flex-1 gap-2 items-center">
                                     <input type="text" value={modState.name} onChange={(e) => setEditingModifierState({ ...editingModifierState, [mod.id]: { ...modState, name: e.target.value } })} className="flex-1 p-1 border rounded-lg text-xs" />
                                     <input type="number" step="0.5" value={modState.priceDelta} onChange={(e) => setEditingModifierState({ ...editingModifierState, [mod.id]: { ...modState, priceDelta: e.target.value } })} className="w-16 p-1 border rounded-lg text-xs" />
-                                    {/* NUEVO: Campo para editar la etiqueta de categoría */}
                                     <input type="text" placeholder="Cat. (Ej. PICANTE)" value={modState.categoryLabel || ''} onChange={(e) => setEditingModifierState({ ...editingModifierState, [mod.id]: { ...modState, categoryLabel: e.target.value } })} className="w-24 p-1 border rounded-lg text-[10px] uppercase" />
                                     <button onClick={() => handleUpdateModifier(group.id, mod.id)} className="p-1 bg-emerald-600 text-white rounded-lg cursor-pointer"><Check className="w-3.5 h-3.5" /></button>
                                     <button onClick={() => { const copy = { ...editingModifierState }; delete copy[mod.id]; setEditingModifierState(copy); }} className="p-1 text-gray-400 cursor-pointer"><X className="w-3.5 h-3.5" /></button>
@@ -814,7 +786,6 @@ const handleUpdateModifier = async (groupId: string, modifierId: string) => {
                                   <>
                                     <div className="flex-1 flex flex-col">
                                       <span className={`${isGlobalAgotado ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{mod.name}</span>
-                                      {/* NUEVO: Muestra la etiqueta de categoría si existe */}
                                       {mod.category_label && (
                                         <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{mod.category_label}</span>
                                       )}
@@ -830,6 +801,7 @@ const handleUpdateModifier = async (groupId: string, modifierId: string) => {
                             );
                           })}
 
+                          {/* BARRA INFERIOR PARA AGREGAR NUEVO MODIFICADOR CON CATEGORÍA */}
                           <div className="flex gap-2 pt-1 relative">
                             <div className="flex-1 relative">
                               <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-400" />
@@ -852,9 +824,30 @@ const handleUpdateModifier = async (groupId: string, modifierId: string) => {
                                 </div>
                               )}
                             </div>
-                            <input type="number" step="0.5" placeholder="Extra $" value={currentInput.priceDelta} onChange={(e) => setModifierInputs({ ...modifierInputs, [group.id]: { ...currentInput, priceDelta: e.target.value } })} className="w-20 p-2 border rounded-xl text-xs bg-white focus:outline-emerald-500" />
-                            <button type="button" onClick={() => handleAddModifier(group.id)} className="bg-gray-900 hover:bg-gray-800 text-white font-bold px-3 py-2 rounded-xl text-xs cursor-pointer">Agregar</button>
+                            <input 
+                              type="number" 
+                              step="0.5" 
+                              placeholder="Extra $" 
+                              value={currentInput.priceDelta} 
+                              onChange={(e) => setModifierInputs({ ...modifierInputs, [group.id]: { ...currentInput, priceDelta: e.target.value } })} 
+                              className="w-16 p-2 border rounded-xl text-xs bg-white focus:outline-emerald-500" 
+                            />
+                            <input
+                              type="text"
+                              placeholder="Categoría (Ej. PICANTE)"
+                              value={currentInput.categoryLabel || ''}
+                              onChange={(e) => setModifierInputs({ ...modifierInputs, [group.id]: { ...currentInput, categoryLabel: e.target.value } })}
+                              className="w-24 p-2 border rounded-xl text-[10px] bg-white text-gray-900 uppercase focus:outline-emerald-500"
+                            />
+                            <button 
+                              type="button" 
+                              onClick={() => handleAddModifier(group.id)} 
+                              className="bg-gray-900 hover:bg-gray-800 text-white font-bold px-3 py-2 rounded-xl text-xs cursor-pointer shrink-0"
+                            >
+                              Agregar
+                            </button>
                           </div>
+
                         </div>
                       </div>
                     );
