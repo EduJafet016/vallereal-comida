@@ -158,7 +158,7 @@ interface ModifierItem {
 
 interface CartItemData {
   product: { name: string; price: number };
-  variant?: { name: string; price_override?: number };
+  selectedVariant?: { name: string; price_override?: number };
   selectedModifiers?: ModifierItem[];
   finalUnitPrice?: number;
   notes?: string;
@@ -206,18 +206,22 @@ function CartItemList({ items, dispatch }: CartItemListProps) {
         <span className="text-xs font-bold text-slate-500">{items.length} {items.length === 1 ? 'artículo' : 'artículos'}</span>
       </div>
       {items.map((item, index) => {
-        const price = item.finalUnitPrice ?? item.product.price;
+        const price = item.finalUnitPrice ?? item.selectedVariant?.price_override ?? item.product.price;
         return (
           <div key={index} className="flex items-center justify-between p-4 bg-white border border-slate-200/70 rounded-2xl shadow-xs hover:shadow-md transition-all">
             <div className="flex-1 pr-3">
               <h4 className="font-black text-sm text-slate-900">{item.product.name}</h4>
               
-              {/* Renderizado de variantes (ej: tamaño, porción) */}
-              {item.variant && (
-                <span className="text-xs text-slate-500 font-medium block mt-0.5">{item.variant.name}</span>
+              {/* --- VARIANTE SELECCIONADA (Ej. 7 pz, 14 pz) --- */}
+              {item.selectedVariant && (
+                <div className="mt-1">
+                  <span className="inline-block bg-slate-100 text-slate-700 text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-slate-200">
+                    {item.selectedVariant.name}
+                  </span>
+                </div>
               )}
 
-              {/* Renderizado de modificadores / salsas (ej: Salsa verde, Salsa roja) */}
+              {/* Modificadores / Salsas */}
               {item.selectedModifiers && item.selectedModifiers.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">
                   {item.selectedModifiers.map((mod, optIndex) => (
@@ -228,7 +232,7 @@ function CartItemList({ items, dispatch }: CartItemListProps) {
                 </div>
               )}
 
-              {/* Notas específicas del producto */}
+              {/* Notas */}
               {item.notes && (
                 <p className="text-[11px] text-slate-400 italic mt-0.5">Nota: {item.notes}</p>
               )}
