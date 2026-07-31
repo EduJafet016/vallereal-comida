@@ -150,9 +150,18 @@ export default function CartModal({ isOpen, onClose, tenant }: CartModalProps) {
 // SUBCOMPONENTES
 // ============================================================================
 
+interface ModifierItem {
+  groupName: string;
+  modifierName: string;
+  priceDelta: number;
+}
+
 interface CartItemData {
   product: { name: string; price: number };
-  selectedVariant?: { name: string; price_override?: number };
+  variant?: { name: string; price_override?: number };
+  selectedModifiers?: ModifierItem[];
+  finalUnitPrice?: number;
+  notes?: string;
   quantity: number;
 }
 
@@ -197,14 +206,33 @@ function CartItemList({ items, dispatch }: CartItemListProps) {
         <span className="text-xs font-bold text-slate-500">{items.length} {items.length === 1 ? 'artículo' : 'artículos'}</span>
       </div>
       {items.map((item, index) => {
-        const price = item.selectedVariant?.price_override ?? item.product.price;
+        const price = item.finalUnitPrice ?? item.product.price;
         return (
           <div key={index} className="flex items-center justify-between p-4 bg-white border border-slate-200/70 rounded-2xl shadow-xs hover:shadow-md transition-all">
             <div className="flex-1 pr-3">
               <h4 className="font-black text-sm text-slate-900">{item.product.name}</h4>
-              {item.selectedVariant && (
-                <span className="text-xs text-slate-500 font-medium block mt-0.5">{item.selectedVariant.name}</span>
+              
+              {/* Renderizado de variantes (ej: tamaño, porción) */}
+              {item.variant && (
+                <span className="text-xs text-slate-500 font-medium block mt-0.5">{item.variant.name}</span>
               )}
+
+              {/* Renderizado de modificadores / salsas (ej: Salsa verde, Salsa roja) */}
+              {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {item.selectedModifiers.map((mod, optIndex) => (
+                    <span key={optIndex} className="inline-block bg-emerald-50 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-emerald-100">
+                      {mod.modifierName}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Notas específicas del producto */}
+              {item.notes && (
+                <p className="text-[11px] text-slate-400 italic mt-0.5">Nota: {item.notes}</p>
+              )}
+
               <span className="text-sm font-black text-emerald-600 block mt-1">
                 ${(price * item.quantity).toFixed(2)}
               </span>
