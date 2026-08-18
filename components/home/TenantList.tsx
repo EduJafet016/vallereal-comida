@@ -16,11 +16,23 @@ interface TenantListProps {
 export function TenantList({ tenants, loading, searchQuery }: TenantListProps) {
   // Estado para la pestaña activa ('active' para listos/con menú, 'pending' para configuración inicial)
   const [activeTab, setActiveTab] = useState<'active' | 'pending'>('active');
+  
+  // Estado para la categoría seleccionada en los botones con iconos
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  // Listado de categorías rápidas con iconos
+  const categoriesList = [
+    { id: 'all', label: 'Todos', icon: '🍽️' },
+    { id: 'postres', label: 'Postres', icon: '🍰' },
+    { id: 'pizza', label: 'Pizza', icon: '🍕' },
+    { id: 'hamburguesas', label: 'Burgers', icon: '🍔' },
+    { id: 'tortas', label: 'Tortas', icon: '🌮' },
+    { id: 'bebidas', label: 'Bebidas', icon: '🥤' },
+  ];
 
   // 1. Filtrar por búsqueda y calcular completitud + estado de salud
-const processedTenants = useMemo(() => {
+  const processedTenants = useMemo(() => {
     return tenants.map((tenant) => {
-      // Nos aseguramos de pasar los productos con su tipado real de tenant_id
       const health = calculateTenantCompleteness(tenant, tenant.products || []);
       return {
         ...tenant,
@@ -29,7 +41,7 @@ const processedTenants = useMemo(() => {
     });
   }, [tenants]);
 
-  // 2. Filtrar por texto de búsqueda, por pestaña y ordenar inteligentemente
+  // 2. Filtrar por texto de búsqueda, pestaña, categoría seleccionada y ordenar inteligentemente
   const filteredTenants = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
 
@@ -38,7 +50,17 @@ const processedTenants = useMemo(() => {
         // Filtro por pestañas de estado (Activos / Pendientes)
         if (tenant.health.status !== activeTab) return false;
 
-        // Si no hay búsqueda por texto, pasa el filtro de pestaña
+        // Filtro por categoría rápida de iconos
+        if (selectedCategory !== 'all') {
+          const matchesCategory = tenant.categories?.some((cat: Pick<Category, 'name'>) => 
+            cat.name.toLowerCase().includes(selectedCategory)
+          ) || tenant.name.toLowerCase().includes(selectedCategory) ||
+             tenant.products?.some(p => p.name.toLowerCase().includes(selectedCategory));
+          
+          if (!matchesCategory) return false;
+        }
+
+        // Si no hay búsqueda por texto, pasa los filtros anteriores
         if (!query) return true;
 
         const matchTenant = 
@@ -62,7 +84,7 @@ const processedTenants = useMemo(() => {
         const bIsOpen = b.is_active ?? false;
 
         if (aIsOpen !== bIsOpen) {
-          return aIsOpen ? -1 : 1; // Si 'a' está abierto y 'b' no, 'a' va primero
+          return aIsOpen ? -1 : 1;
         }
 
         // 2. Si ambos tienen el mismo estado operativo, ordenar por puntaje de completitud
@@ -73,9 +95,9 @@ const processedTenants = useMemo(() => {
         // 3. Si empatan en puntaje, ordenar alfabéticamente
         return a.name.localeCompare(b.name);
       });
-  }, [processedTenants, searchQuery, activeTab]);
+  }, [processedTenants, searchQuery, activeTab, selectedCategory]);
 
-  // Contadores dinámicos para las pestañas (tomando en cuenta el buscador opcional si deseas, o globales)
+  // Contadores dinámicos para las pestañas
   const counts = useMemo(() => {
     return {
       active: processedTenants.filter(t => t.health.status === 'active').length,
@@ -95,6 +117,55 @@ const processedTenants = useMemo(() => {
             Tratas directamente con los vecinos de Valle Real. Tu pedido llega a su WhatsApp sin recargos.
           </p>
         </div>
+      </div>
+
+{/* Carrusel de Categorías con desplazamiento optimizado para PC y Móvil */}
+      <div className="relative group">
+        {/* Degradado indicador en el borde derecho para sugerir que hay más contenido */}
+        <div className="absolute right-0 top-0 bottom-2 w-10 bg-gradient-to-l from-slate-50/90 to-transparent pointer-events-none z-10 transition-opacity" />
+
+        <div 
+          id="categories-container"
+          className="flex gap-2 overflow-x-auto pb-2 scrollbar-none px-1 scroll-smooth"
+        >
+          {categoriesList.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-bold whitespace-nowrap transition-all shadow-xs cursor-pointer shrink-0 ${
+                selectedCategory === cat.id
+                  ? 'bg-emerald-600 text-white shadow-emerald-200 ring-2 ring-emerald-600/20'
+                  : 'bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-50'
+              }`}
+            >
+              <span className="text-sm">{cat.icon}</span>
+              <span>{cat.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Botones de desplazamiento para PC (visibles en pantallas medianas en adelante) */}
+        <button 
+          onClick={() => {
+            const container = document.getElementById('categories-container');
+            if (container) container.scrollLeft -= 200;
+          }}
+          className="hidden sm:flex absolute -left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white border border-slate-200 rounded-full items-center justify-center shadow-md text-slate-600 hover:bg-slate-50 hover:text-emerald-600 z-20 cursor-pointer transition-all opacity-0 group-hover:opacity-100"
+          aria-label="Anterior"
+        >
+          ‹
+        </button>
+
+        <button 
+          onClick={() => {
+            const container = document.getElementById('categories-container');
+            if (container) container.scrollLeft += 200;
+          }}
+          className="hidden sm:flex absolute -right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white border border-slate-200 rounded-full items-center justify-center shadow-md text-slate-600 hover:bg-slate-50 hover:text-emerald-600 z-20 cursor-pointer transition-all opacity-0 group-hover:opacity-100"
+          aria-label="Siguiente"
+        >
+          ›
+        </button>
       </div>
 
       {/* Cabecera y Pestañas de Estado (Activos / Pendientes) */}
@@ -135,24 +206,22 @@ const processedTenants = useMemo(() => {
       </div>
 
       {loading ? (
-        <div className="space-y-3">
+        <div className="space-y-3.5">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-24 bg-white rounded-2xl border border-slate-100 animate-pulse shadow-xs" />
+            <div key={i} className="h-32 bg-white rounded-3xl border border-slate-100 animate-pulse shadow-xs" />
           ))}
         </div>
       ) : filteredTenants.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-100 p-8 text-center space-y-2 shadow-xs">
+        <div className="bg-white rounded-3xl border border-slate-100 p-8 text-center space-y-2 shadow-xs">
           <p className="text-sm font-semibold text-slate-700">No se encontraron resultados</p>
-          <p className="text-xs text-slate-400">Intenta buscar con otra palabra clave o cambia de pestaña.</p>
+          <p className="text-xs text-slate-400">Intenta con otra categoría o palabra clave.</p>
         </div>
       ) : (
-        <div className="space-y-3.5">
+        <div className="space-y-4">
           {filteredTenants.map((tenant) => {
             const isWithinSchedule = isStoreOpen(tenant.opening_time, tenant.closing_time);
-            
             const isOpen = tenant.is_active ?? false;
             const isExtraHours = isOpen && !isWithinSchedule;
-
             const initial = tenant.name ? tenant.name.charAt(0).toUpperCase() : 'V';
 
             return (
@@ -160,13 +229,14 @@ const processedTenants = useMemo(() => {
                 key={tenant.id}
                 href={`/${tenant.slug}`}
                 prefetch={false}
-                className={`group block bg-white border p-4 sm:p-4.5 rounded-2xl shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all relative overflow-hidden ${
+                className={`group block bg-white border p-5 sm:p-6 rounded-3xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all relative overflow-hidden ${
                   isOpen ? 'border-slate-100 hover:border-emerald-200' : 'border-slate-100 opacity-75'
                 }`}
               >
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4.5">
+                  {/* Logo más grande para mayor visibilidad */}
                   <div
-                    className={`w-12 h-12 rounded-2xl shrink-0 flex items-center justify-center font-black text-base transition-all shadow-xs ${
+                    className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl shrink-0 flex items-center justify-center font-black text-xl transition-all shadow-xs ${
                       isOpen
                         ? 'bg-emerald-50 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white group-hover:shadow-sm'
                         : 'bg-slate-100 text-slate-400'
@@ -174,31 +244,30 @@ const processedTenants = useMemo(() => {
                   >
                     {tenant.logo_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={tenant.logo_url} alt={tenant.name} className="w-full h-full object-cover rounded-2xl" />
+                      <img src={tenant.logo_url} alt={tenant.name} className="w-full h-full object-cover rounded-2xl sm:rounded-3xl" />
                     ) : (
                       initial
                     )}
                   </div>
 
-                  <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex-1 min-w-0 space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
-                      <h3 className={`font-bold text-sm truncate transition-colors ${
+                      <h3 className={`font-extrabold text-base sm:text-lg truncate transition-colors ${
                         isOpen ? 'text-slate-900 group-hover:text-emerald-700' : 'text-slate-500'
                       }`}>
                         {tenant.name}
                       </h3>
 
                       <div className="flex items-center gap-1.5 shrink-0">
-
                         <span
-                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-2xs ${
+                          className={`text-[11px] font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs ${
                             isOpen
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-100/60'
-                              : 'bg-rose-50 text-rose-600 border border-rose-100/60'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-100/80'
+                              : 'bg-rose-50 text-rose-600 border border-rose-100/80'
                           }`}
                         >
                           {isOpen && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                           )}
                           {isOpen ? 'Abierto' : 'Cerrado'}
                         </span>
@@ -206,33 +275,33 @@ const processedTenants = useMemo(() => {
                     </div>
 
                     {tenant.description ? (
-                      <p className="text-xs text-slate-500 font-normal truncate">
+                      <p className="text-xs sm:text-sm text-slate-500 font-normal line-clamp-1">
                         {tenant.description}
                       </p>
                     ) : tenant.health.missingItems.length > 0 && activeTab === 'pending' ? (
-                      <p className="text-[11px] text-amber-600 font-medium truncate">
+                      <p className="text-xs text-amber-600 font-medium truncate">
                         Falta: {tenant.health.missingItems.join(', ')}
                       </p>
                     ) : null}
 
-                    <div className="flex items-center gap-2 text-[11px] text-slate-400 pt-0.5">
+                    <div className="flex items-center gap-2 text-xs text-slate-400 pt-1">
                       <span className="inline-flex items-center gap-1 font-medium">
-                        <Clock className={`w-3 h-3 shrink-0 ${isOpen ? 'text-emerald-600' : 'text-slate-400'}`} />
+                        <Clock className={`w-3.5 h-3.5 shrink-0 ${isOpen ? 'text-emerald-600' : 'text-slate-400'}`} />
                         {tenant.opening_time.slice(0, 5)} - {tenant.closing_time.slice(0, 5)} hrs
                       </span>
 
                       {isExtraHours && (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] text-indigo-600 font-bold bg-indigo-50 px-1.5 py-0.5 rounded-md border border-indigo-100/50">
-                          <Sparkles className="w-2.5 h-2.5" /> Fuera de horario
+                        <span className="inline-flex items-center gap-1 text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100/50">
+                          <Sparkles className="w-3 h-3" /> Fuera de horario
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all shrink-0 ${
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0 ${
                     isOpen ? 'bg-slate-50 text-slate-300 group-hover:bg-emerald-50 group-hover:text-emerald-600 group-hover:translate-x-0.5' : 'text-slate-200'
                   }`}>
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-5 h-5" />
                   </div>
                 </div>
               </Link>
