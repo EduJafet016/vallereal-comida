@@ -57,10 +57,20 @@ const processedTenants = useMemo(() => {
         return matchTenant || matchCategory || matchProduct;
       })
       .sort((a, b) => {
-        // Ordenamiento inteligente: Primero por puntaje de completitud (gamificación) y luego alfabético
+        // 1. Priorizar siempre a los abiertos/activos sobre los cerrados
+        const aIsOpen = a.is_active ?? false;
+        const bIsOpen = b.is_active ?? false;
+
+        if (aIsOpen !== bIsOpen) {
+          return aIsOpen ? -1 : 1; // Si 'a' está abierto y 'b' no, 'a' va primero
+        }
+
+        // 2. Si ambos tienen el mismo estado operativo, ordenar por puntaje de completitud
         if (b.health.score !== a.health.score) {
           return b.health.score - a.health.score;
         }
+
+        // 3. Si empatan en puntaje, ordenar alfabéticamente
         return a.name.localeCompare(b.name);
       });
   }, [processedTenants, searchQuery, activeTab]);
@@ -179,10 +189,6 @@ const processedTenants = useMemo(() => {
                       </h3>
 
                       <div className="flex items-center gap-1.5 shrink-0">
-                        {/* Indicador de Score de Completitud */}
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                          {tenant.health.score}%
-                        </span>
 
                         <span
                           className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-2xs ${
