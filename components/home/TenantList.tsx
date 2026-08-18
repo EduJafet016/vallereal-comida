@@ -1,9 +1,11 @@
 'use client';
 
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { TenantWithMenu, Category, Product } from '@/types';
+import { TenantWithMenu, Category } from '@/types';
 import { isStoreOpen } from '@/lib/utils';
-import { Clock, ChevronRight, Sparkles, UtensilsCrossed, ShieldCheck } from 'lucide-react';
+import { calculateTenantCompleteness } from '@/lib/tenantScoring';
+import { Clock, ChevronRight, Sparkles, UtensilsCrossed, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface TenantListProps {
   tenants: TenantWithMenu[];
@@ -12,35 +14,64 @@ interface TenantListProps {
 }
 
 export function TenantList({ tenants, loading, searchQuery }: TenantListProps) {
-  const filteredTenants = tenants
-    .filter((t) => {
-      const query = searchQuery.toLowerCase().trim();
-      if (!query) return true;
+  // Estado para la pestaña activa ('active' para listos/con menú, 'pending' para configuración inicial)
+  const [activeTab, setActiveTab] = useState<'active' | 'pending'>('active');
 
-      const matchTenant = 
-        t.name.toLowerCase().includes(query) || 
-        (t.description && t.description.toLowerCase().includes(query));
-
-      const matchCategory = t.categories?.some((cat: Pick<Category, 'name'>) => 
-        cat.name.toLowerCase().includes(query)
-      );
-
-      const matchProduct = t.products?.some((prod: Pick<Product, 'name' | 'description'>) => 
-        prod.name.toLowerCase().includes(query) ||
-        (prod.description && prod.description.toLowerCase().includes(query))
-      );
-
-      return matchTenant || matchCategory || matchProduct;
-    })
-    .sort((a, b) => {
-      const aOpen = a.is_active ?? false;
-      const bOpen = b.is_active ?? false;
-
-      if (aOpen && !bOpen) return -1;
-      if (!aOpen && bOpen) return 1;
-
-      return a.name.localeCompare(b.name);
+  // 1. Filtrar por búsqueda y calcular completitud + estado de salud
+const processedTenants = useMemo(() => {
+    return tenants.map((tenant) => {
+      // Nos aseguramos de pasar los productos con su tipado real de tenant_id
+      const health = calculateTenantCompleteness(tenant, tenant.products || []);
+      return {
+        ...tenant,
+        health,
+      };
     });
+  }, [tenants]);
+
+  // 2. Filtrar por texto de búsqueda, por pestaña y ordenar inteligentemente
+  const filteredTenants = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+
+    return processedTenants
+      .filter((tenant) => {
+        // Filtro por pestañas de estado (Activos / Pendientes)
+        if (tenant.health.status !== activeTab) return false;
+
+        // Si no hay búsqueda por texto, pasa el filtro de pestaña
+        if (!query) return true;
+
+        const matchTenant = 
+          tenant.name.toLowerCase().includes(query) || 
+          (tenant.description && tenant.description.toLowerCase().includes(query));
+
+        const matchCategory = tenant.categories?.some((cat: Pick<Category, 'name'>) => 
+          cat.name.toLowerCase().includes(query)
+        );
+
+        const matchProduct = tenant.products?.some((prod) => 
+          prod.name.toLowerCase().includes(query) ||
+          (prod.description && prod.description.toLowerCase().includes(query))
+        );
+
+        return matchTenant || matchCategory || matchProduct;
+      })
+      .sort((a, b) => {
+        // Ordenamiento inteligente: Primero por puntaje de completitud (gamificación) y luego alfabético
+        if (b.health.score !== a.health.score) {
+          return b.health.score - a.health.score;
+        }
+        return a.name.localeCompare(b.name);
+      });
+  }, [processedTenants, searchQuery, activeTab]);
+
+  // Contadores dinámicos para las pestañas (tomando en cuenta el buscador opcional si deseas, o globales)
+  const counts = useMemo(() => {
+    return {
+      active: processedTenants.filter(t => t.health.status === 'active').length,
+      pending: processedTenants.filter(t => t.health.status === 'pending').length,
+    };
+  }, [processedTenants]);
 
   return (
     <section className="max-w-md mx-auto px-4 mt-4 space-y-5">
@@ -56,13 +87,41 @@ export function TenantList({ tenants, loading, searchQuery }: TenantListProps) {
         </div>
       </div>
 
-      <div className="flex justify-between items-center px-1 pt-1">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-          <UtensilsCrossed className="w-3.5 h-3.5 text-emerald-600" /> Locales Disponibles
-        </h2>
-        <span className="text-[11px] font-semibold text-slate-400 bg-slate-200/60 px-2.5 py-0.5 rounded-full">
-          {filteredTenants.length} {filteredTenants.length === 1 ? 'encontrado' : 'encontrados'}
-        </span>
+      {/* Cabecera y Pestañas de Estado (Activos / Pendientes) */}
+      <div className="flex flex-col gap-3 px-1 pt-1">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <UtensilsCrossed className="w-3.5 h-3.5 text-emerald-600" /> Locales Disponibles
+          </h2>
+          <span className="text-[11px] font-semibold text-slate-400 bg-slate-200/60 px-2.5 py-0.5 rounded-full">
+            {filteredTenants.length} {filteredTenants.length === 1 ? 'encontrado' : 'encontrados'}
+          </span>
+        </div>
+
+        {/* Botones de Pestañas */}
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+          <button
+            onClick={() => setActiveTab('active')}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'active' 
+                ? 'bg-white text-emerald-700 shadow-2xs' 
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" /> Activos ({counts.active})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('pending')}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'pending' 
+                ? 'bg-white text-amber-700 shadow-2xs' 
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <AlertCircle className="w-3.5 h-3.5" /> Pendientes ({counts.pending})
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -74,7 +133,7 @@ export function TenantList({ tenants, loading, searchQuery }: TenantListProps) {
       ) : filteredTenants.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 p-8 text-center space-y-2 shadow-xs">
           <p className="text-sm font-semibold text-slate-700">No se encontraron resultados</p>
-          <p className="text-xs text-slate-400">Intenta buscar con otra palabra clave de platillo, categoría o local.</p>
+          <p className="text-xs text-slate-400">Intenta buscar con otra palabra clave o cambia de pestaña.</p>
         </div>
       ) : (
         <div className="space-y-3.5">
@@ -119,25 +178,36 @@ export function TenantList({ tenants, loading, searchQuery }: TenantListProps) {
                         {tenant.name}
                       </h3>
 
-                      <span
-                        className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full shrink-0 flex items-center gap-1.5 shadow-2xs ${
-                          isOpen
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100/60'
-                            : 'bg-rose-50 text-rose-600 border border-rose-100/60'
-                        }`}
-                      >
-                        {isOpen && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        )}
-                        {isOpen ? 'Abierto' : 'Cerrado'}
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Indicador de Score de Completitud */}
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                          {tenant.health.score}%
+                        </span>
+
+                        <span
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-2xs ${
+                            isOpen
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-100/60'
+                              : 'bg-rose-50 text-rose-600 border border-rose-100/60'
+                          }`}
+                        >
+                          {isOpen && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          )}
+                          {isOpen ? 'Abierto' : 'Cerrado'}
+                        </span>
+                      </div>
                     </div>
 
-                    {tenant.description && (
+                    {tenant.description ? (
                       <p className="text-xs text-slate-500 font-normal truncate">
                         {tenant.description}
                       </p>
-                    )}
+                    ) : tenant.health.missingItems.length > 0 && activeTab === 'pending' ? (
+                      <p className="text-[11px] text-amber-600 font-medium truncate">
+                        Falta: {tenant.health.missingItems.join(', ')}
+                      </p>
+                    ) : null}
 
                     <div className="flex items-center gap-2 text-[11px] text-slate-400 pt-0.5">
                       <span className="inline-flex items-center gap-1 font-medium">
