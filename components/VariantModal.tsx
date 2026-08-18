@@ -5,16 +5,30 @@ import { Product, ModifierGroup, Modifier, ProductVariant } from '@/types';
 import { useCartDispatch } from '../context/CartContext';
 import { X, Check } from 'lucide-react';
 
+interface FormattedModifier {
+  groupName: string;
+  modifierName: string;
+  priceDelta: number;
+}
+
 interface VariantModalProps {
   isOpen: boolean;
   onClose: () => void;
   product: Product | null;
+  onConfirmWithCoords?: (
+    e: React.MouseEvent, 
+    finalPrice: number, 
+    selectedVariant: ProductVariant | undefined, 
+    formattedModifiers: FormattedModifier[], 
+    notes: string
+  ) => void;
 }
 
 export default function VariantModal({
   isOpen,
   onClose,
   product,
+  onConfirmWithCoords,
 }: VariantModalProps) {
   const dispatch = useCartDispatch();
   
@@ -23,7 +37,6 @@ export default function VariantModal({
   const [selectedModifiers, setSelectedModifiers] = useState<Record<string, Modifier[]>>({});
   const [notes, setNotes] = useState('');
 
-  // Sincronización segura de estado por cambio de producto
   if (product !== prevProduct) {
     setPrevProduct(product);
     if (product) {
@@ -37,7 +50,6 @@ export default function VariantModal({
           const maxAllowed = getDynamicMaxSelections(group, initialVariant);
           if (group.is_required && group.modifiers && group.modifiers.length > 0) {
             const availableModifiers = group.modifiers.filter(m => m.is_available !== false);
-            // Si es de selección única y es obligatorio, autoseleccionamos el primero por comodidad
             initialSelections[group.id] = maxAllowed === 1 && availableModifiers.length > 0 
               ? [availableModifiers[0]] 
               : [];
@@ -61,7 +73,6 @@ export default function VariantModal({
   const variants: ProductVariant[] = product.product_variants || [];
   const modifierGroups: ModifierGroup[] = product.modifier_groups || [];
 
-  // --- LÓGICA CLAVE: Lee el límite configurado por el tenant en la variante ---
   function getDynamicMaxSelections(group: ModifierGroup, variant?: ProductVariant): number {
     if (variant && variant.max_modifier_selections !== undefined && variant.max_modifier_selections !== null) {
       return variant.max_modifier_selections;
@@ -69,7 +80,6 @@ export default function VariantModal({
     return group.max_selections ?? 1;
   }
 
-  // Manejador al cambiar de variante (recorta excesos si se reduce el límite)
   const handleSelectVariant = (variant: ProductVariant) => {
     setSelectedVariant(variant);
 
@@ -80,7 +90,6 @@ export default function VariantModal({
         const currentList = updated[group.id] || [];
         
         if (newMax === 0) {
-          // Si el límite es 0, vaciamos inmediatamente las selecciones
           updated[group.id] = [];
         } else if (newMax === 1 && currentList.length === 0 && group.is_required && group.modifiers && group.modifiers.length > 0) {
           const firstAvail = group.modifiers.find(m => m.is_available !== false);
@@ -97,8 +106,6 @@ export default function VariantModal({
   
   const isModifiersValid = modifierGroups.every((group) => {
     const dynamicMax = getDynamicMaxSelections(group, selectedVariant);
-    
-    // Si la variante bloquea los extras (0), damos el grupo por válido automáticamente
     if (dynamicMax === 0) return true;
 
     const selectedCount = Array.isArray(selectedModifiers[group.id]) 
@@ -106,13 +113,10 @@ export default function VariantModal({
       : 0;
       
     const minReq = group.min_selections ?? (group.is_required ? 1 : 0);
-    
-    // Validamos contra el requerimiento original, pero nunca pedimos más del máximo permitido
     return selectedCount >= Math.min(minReq, dynamicMax);
   });
 
   const isFormValid = isVariantsValid && isModifiersValid;
-
   const basePrice = selectedVariant?.price_override ?? product.price ?? 0;
   
   const modifiersTotalDelta = Object.values(selectedModifiers).reduce((sum, modList) => {
@@ -130,11 +134,9 @@ export default function VariantModal({
       const exists = currentList.some((mod) => mod.id === modifier.id);
 
       if (currentMax === 1) {
-        // Si es de máximo 1 selección y ya estaba seleccionado, permitimos quitarlo solo si no es estrictamente obligatorio
         if (exists && !group.is_required) {
           return { ...prev, [group.id]: [] };
         }
-        // Si es obligatorio con máx 1, simplemente reemplazamos por el nuevo elegido
         return { ...prev, [group.id]: [modifier] };
       }
 
@@ -142,17 +144,17 @@ export default function VariantModal({
         return { ...prev, [group.id]: currentList.filter((mod) => mod.id !== modifier.id) };
       } else {
         if (currentList.length >= currentMax) {
-          return prev; // Ya alcanzó el límite permitido por la variante
+          return prev;
         }
         return { ...prev, [group.id]: [...currentList, modifier] };
       }
     });
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = (e: React.MouseEvent) => {
     if (!isFormValid) return;
 
-    const formattedModifiers = Object.entries(selectedModifiers).flatMap(([groupId, modList]) => {
+    const formattedModifiers: FormattedModifier[] = Object.entries(selectedModifiers).flatMap(([groupId, modList]) => {
       const group = modifierGroups.find((g) => g.id === groupId);
       const list = Array.isArray(modList) ? modList : [];
       return list.map((mod) => ({
@@ -162,16 +164,20 @@ export default function VariantModal({
       }));
     });
 
-    dispatch({
-      type: 'ADD_ITEM',
-      payload: {
-        product,
-        variant: selectedVariant,
-        selectedModifiers: formattedModifiers,
-        finalUnitPrice: finalPrice,
-        notes: notes.trim() || undefined,
-      },
-    });
+    if (onConfirmWithCoords) {
+      onConfirmWithCoords(e, finalPrice, selectedVariant, formattedModifiers, notes.trim());
+    } else {
+      dispatch({
+        type: 'ADD_ITEM',
+        payload: {
+          product,
+          variant: selectedVariant,
+          selectedModifiers: formattedModifiers,
+          finalUnitPrice: finalPrice,
+          notes: notes.trim() || undefined,
+        },
+      });
+    }
 
     setSelectedVariant(undefined);
     setSelectedModifiers({});
@@ -197,7 +203,6 @@ export default function VariantModal({
         </div>
 
         <div className="space-y-5 mb-4 overflow-y-auto flex-1 pr-1">
-          
           {variants.length > 0 && (
             <div className="space-y-2">
               <div className="flex justify-between items-center">
@@ -252,12 +257,9 @@ export default function VariantModal({
               const dynamicMax = getDynamicMaxSelections(group, selectedVariant);
               const isSingle = dynamicMax === 1;
 
-              // Abortar renderizado en el Virtual DOM si la variante no permite extras
               if (dynamicMax === 0) return null;
 
-              // AGRUPACIÓN DINÁMICA ESTRICTA: Separar por el nombre del catálogo relacional
               const groupedModifiers = modifiersList.reduce((acc, mod) => {
-                // Navegamos al objeto relacional modifier_categories que trae Supabase
                 const cat = mod.modifier_categories?.name?.trim() || '';
                 if (!acc[cat]) acc[cat] = [];
                 acc[cat].push(mod);
@@ -280,8 +282,6 @@ export default function VariantModal({
                   <div className="space-y-4">
                     {Object.entries(groupedModifiers).map(([categoryName, mods], index) => (
                       <div key={categoryName || index} className="space-y-2">
-                        
-                        {/* Mostrar encabezado de la subcategoría solo si existe (Ej. NO PICANTE) */}
                         {categoryName && (
                           <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1 mt-1">
                             {categoryName}
@@ -359,7 +359,7 @@ export default function VariantModal({
         <div className="pt-3 border-t shrink-0">
           <button
             disabled={!isFormValid}
-            onClick={handleConfirm}
+            onClick={(e) => handleConfirm(e)}
             className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-400 text-white py-4 px-6 rounded-2xl font-black text-sm shadow-xl shadow-emerald-600/25 transition-all active:scale-[0.99] cursor-pointer"
           >
             {isFormValid
