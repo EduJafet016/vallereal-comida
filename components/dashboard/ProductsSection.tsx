@@ -82,117 +82,102 @@ function SortableItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`p-3 border rounded-xl flex justify-between items-center gap-3 transition-colors ${
-        isFeatured ? 'bg-amber-50/45 border-amber-200' : 'bg-slate-50/70 border-slate-200/70'
-      } ${isDragging ? 'shadow-lg bg-white ring-2 ring-[#007A55]/20' : ''}`}
+      className={`p-3.5 border rounded-2xl flex items-start gap-3 transition-all ${
+        isFeatured ? 'bg-amber-50/40 border-amber-200 shadow-2xs' : 'bg-white border-slate-200 hover:border-slate-300 shadow-2xs'
+      } ${isDragging ? 'shadow-lg bg-white ring-2 ring-emerald-500/20' : ''}`}
     >
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        {/* Botón de agarre (Handle) */}
-        <button
-          {...attributes}
-          {...listeners}
-          className="p-1 text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing shrink-0 touch-none"
-          title="Reordenar platillo"
-        >
-          <GripVertical className="w-4 h-4" />
-        </button>
+      {/* 1. Botón de arrastre (Grip) */}
+      <button
+        {...attributes}
+        {...listeners}
+        className="p-1 text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing shrink-0 touch-none mt-0.5"
+        title="Reordenar platillo"
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
 
-        {/* Lado izquierdo: Info del producto */}
-        <div className="min-w-0 flex-1 flex flex-col justify-center">
-          <div className="flex items-start gap-1.5 pr-2">
-            <h3 className="font-bold text-slate-900 text-xs leading-tight break-words">
-              {product.name}
-            </h3>
-            {isFeatured && (
-              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 shrink-0 mt-[1px]" />
-            )}
-          </div>
-          
-          {product.description && (
-            <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed pr-2">
-              {product.description}
-            </p>
+      {/* 2. Columna Izquierda: Información del producto */}
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          <h3 className="font-bold text-slate-900 text-xs truncate">
+            {product.name}
+          </h3>
+          {isFeatured && (
+            <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
           )}
-          
-          <div className="flex items-center gap-1.5 mt-1.5">
-            <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full ${
-              product.is_available 
-                ? 'bg-emerald-100/70 text-[#007A55] border border-emerald-200' 
-                : 'bg-red-50 text-red-600 border border-red-200'
-            }`}>
-              {product.is_available ? 'Disponible' : 'Agotado'}
+        </div>
+        
+        {product.description && (
+          <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
+            {product.description}
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          <span className={`inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-md ${
+            product.is_available 
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60' 
+              : 'bg-rose-50 text-rose-600 border border-rose-200/60'
+          }`}>
+            {product.is_available ? 'Disponible' : 'Agotado'}
+          </span>
+          {groupsCount > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200/60">
+              <Layers className="w-2.5 h-2.5" /> {groupsCount} {groupsCount === 1 ? 'Grupo' : 'Grupos'}
             </span>
-            {groupsCount > 0 && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                <Layers className="w-3 h-3" /> {groupsCount} {groupsCount === 1 ? 'Grupo' : 'Grupos'}
-              </span>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Lado derecho: Imagen + Controles Administrativos */}
-      <div className="flex items-center gap-3 shrink-0">
-        
-        {/* Renderizado condicional de la imagen */}
+      {/* 3. Columna Derecha: Imagen más grande arriba y Controles/Precio abajo */}
+      <div className="flex flex-col items-end gap-2 shrink-0">
         {product.image_url && (
-          <div className="shrink-0 rounded-lg overflow-hidden border border-slate-200 shadow-sm w-16 h-16 relative bg-white">
+          <div className="shrink-0 rounded-xl overflow-hidden border border-slate-200 shadow-2xs w-20 h-20 relative bg-slate-50">
             <Image
               src={product.image_url}
               alt={product.name}
               fill
               className="object-cover"
-              sizes="64px"
+              sizes="80px"
             />
           </div>
         )}
 
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+        <div className="flex items-center gap-2">
+          {/* Input de Precio */}
+          <div className="flex items-center bg-slate-50 border border-slate-200 px-2 py-1 rounded-xl shadow-2xs">
+            <span className="text-[11px] font-bold text-slate-400 mr-0.5">$</span>
+            <input
+              type="number"
+              step="0.5"
+              defaultValue={product.price}
+              onBlur={(e) => updatePrice(product.id, parseFloat(e.target.value))}
+              className="w-11 text-xs font-black text-slate-900 bg-transparent text-center focus:outline-none"
+            />
+          </div>
+
+          {/* Botonera de acciones */}
+          <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-200/80 p-1 rounded-xl">
             <button 
               onClick={() => toggleFeatured(product)} 
               disabled={updatingId === product.id}
-              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isFeatured ? 'text-amber-500 hover:text-amber-600 bg-amber-50' : 'text-slate-400 hover:text-amber-500'}`}
-              title={isFeatured ? 'Quitar destacado' : 'Destacar platillo'}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isFeatured ? 'text-amber-500 bg-amber-50' : 'text-slate-400 hover:text-amber-500'}`}
+              title={isFeatured ? 'Quitar destacado' : 'Destacar'}
             >
               <Star className={`w-3.5 h-3.5 ${isFeatured ? 'fill-amber-500' : ''}`} />
             </button>
-            <div className="w-px h-4 bg-slate-200 mx-1"></div>
             <button 
               onClick={() => setEditingProduct(product)} 
-              className="p-1.5 text-slate-500 hover:text-[#007A55] rounded-lg transition-colors cursor-pointer"
+              className="p-1.5 text-slate-400 hover:text-emerald-700 rounded-lg transition-colors cursor-pointer"
               title="Editar"
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>
             <button 
-              onClick={() => handleDeleteProduct(product)} 
-              className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
-              title="Eliminar"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-0.5 bg-white border border-slate-200 px-2 py-1 rounded-xl shadow-2xs">
-              <span className="text-xs font-bold text-slate-400">$</span>
-              <input
-                type="number"
-                step="0.5"
-                defaultValue={product.price}
-                onBlur={(e) => updatePrice(product.id, parseFloat(e.target.value))}
-                className="w-12 text-xs font-bold text-slate-900 bg-transparent text-center focus:outline-none"
-              />
-            </div>
-
-            <button 
               disabled={updatingId === product.id} 
               onClick={() => toggleAvailability(product)} 
-              className={`p-2 rounded-xl border flex items-center transition-all cursor-pointer shadow-2xs ${
-                product.is_available 
-                  ? 'bg-emerald-50 text-[#007A55] border-emerald-200 hover:bg-emerald-100' 
-                  : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                product.is_available ? 'text-emerald-700 hover:bg-emerald-50' : 'text-amber-600 hover:bg-amber-50'
               }`}
               title={product.is_available ? 'Marcar agotado' : 'Marcar disponible'}
             >
@@ -203,6 +188,13 @@ function SortableItem({
               ) : (
                 <EyeOff className="w-3.5 h-3.5" />
               )}
+            </button>
+            <button 
+              onClick={() => handleDeleteProduct(product)} 
+              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+              title="Eliminar"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -242,7 +234,6 @@ export function ProductsSection({ tenant, categories, products: initialProducts,
     onConfirm: () => {},
   });
 
-  // Configuración de sensores para dnd-kit
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -254,13 +245,11 @@ export function ProductsSection({ tenant, categories, products: initialProducts,
     })
   );
 
-  // Manejador del final del arrastre acotado por categoría
   const handleDragEnd = async (event: DragEndEvent, categoryId: string) => {
     const { active, over } = event;
 
     if (!over || active.id === over.id) return;
 
-    // Filtrar únicamente los productos de esta categoría específica
     const categoryProducts = localProducts.filter((p) => p.category_id === categoryId);
     
     const oldIndex = categoryProducts.findIndex((p) => p.id === active.id);
@@ -268,22 +257,18 @@ export function ProductsSection({ tenant, categories, products: initialProducts,
 
     if (oldIndex === -1 || newIndex === -1) return;
 
-    // 1. Reordenamiento visual dentro de los límites de la categoría
     const reorderedCategoryProducts = arrayMove(categoryProducts, oldIndex, newIndex);
     
-    // Asignar nuevos sort_orders basados en su posición dentro de la categoría
     const updatedCategoryWithIndices = reorderedCategoryProducts.map((prod, index) => ({
       ...prod,
       sort_order: index,
     }));
 
-    // Reconstruir el arreglo global manteniendo intactas las demás categorías
     const otherProducts = localProducts.filter((p) => p.category_id !== categoryId);
     const newGlobalProducts = [...otherProducts, ...updatedCategoryWithIndices];
 
     setLocalProducts(newGlobalProducts);
 
-    // 2. Persistencia en Supabase
     try {
       const updates = updatedCategoryWithIndices.map((prod) => 
         supabase
@@ -397,7 +382,7 @@ export function ProductsSection({ tenant, categories, products: initialProducts,
         name: data.name.trim(),
         description: data.description.trim() || null,
         price: parseFloat(data.price),
-        image_url: data.imageUrl || null, // <-- Aseguramos guardar la imagen
+        image_url: data.imageUrl || null,
         is_available: true,
         sort_order: categoryProductsCount,
       }]);
@@ -480,7 +465,7 @@ export function ProductsSection({ tenant, categories, products: initialProducts,
                     items={categoryProducts.map((p) => p.id)} 
                     strategy={verticalListSortingStrategy}
                   >
-                    <div className="space-y-2.5">
+                    <div className="space-y-2">
                       {categoryProducts.map((product) => (
                         <SortableItem
                           key={product.id}
