@@ -46,6 +46,7 @@ export interface ProductVariant {
   price_override?: number;
   max_modifier_selections?: number;
   created_at?: string;
+
 }
 
 // === Inventario Global ===
@@ -100,6 +101,7 @@ export interface Product {
   sort_order?: number;
   product_variants?: ProductVariant[];
   modifier_groups?: ModifierGroup[]; 
+  image_url?: string | null;
 }
 
 // === Carrito e interfaces extendidas ===

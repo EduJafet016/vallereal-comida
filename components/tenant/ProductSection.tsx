@@ -1,7 +1,7 @@
 'use client';
 
+import Image from 'next/image'; // 1. Agregamos la importación de Next Image
 import { Category, Product } from '@/types';
-// 1. Agregamos el icono Star
 import { Layers, Plus, Star } from 'lucide-react';
 
 interface ProductSectionProps {
@@ -77,7 +77,6 @@ export function ProductSection({
                   const isAvailable = isOpen && product.is_available;
                   const isFeatured = product.is_featured;
 
-                  // 2. Evaluamos el estilo de la tarjeta basándonos en si está destacada y disponible
                   const cardStyle = !isAvailable
                     ? 'border-slate-100 opacity-60 bg-slate-50/50'
                     : isFeatured
@@ -89,7 +88,8 @@ export function ProductSection({
                       key={product.id}
                       className={`flex justify-between items-center p-4 border rounded-2xl shadow-xs transition-all ${cardStyle}`}
                     >
-                      <div className="flex-1 pr-3 space-y-1">
+                      {/* 2. Lado Izquierdo: Información (Le agregamos min-w-0 para evitar desbordes) */}
+                      <div className="flex-1 pr-3 space-y-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3
                             className={`font-bold text-sm tracking-tight ${
@@ -99,7 +99,6 @@ export function ProductSection({
                             {product.name}
                           </h3>
 
-                          {/* 3. Badge visual para destacados */}
                           {isFeatured && isAvailable && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-100/80 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">
                               <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Recomendado
@@ -134,23 +133,41 @@ export function ProductSection({
                         </span>
                       </div>
 
-                      {isAvailable ? (
-                        <button
-                          onClick={() => onAddProduct(product)}
-                          className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-95 shrink-0 cursor-pointer shadow-2xs group ${
-                            isFeatured 
-                              ? 'bg-amber-100 hover:bg-amber-500 text-amber-600 hover:text-white' 
-                              : 'bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white'
-                          }`}
-                          aria-label={`Agregar ${product.name}`}
-                        >
-                          <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
-                        </button>
-                      ) : (
-                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-3 py-2 rounded-xl shrink-0 select-none">
-                          {!isOpen ? 'Cerrado' : 'Agotado'}
-                        </span>
-                      )}
+                      {/* 3. Lado Derecho: Imagen + Botón de Agregar */}
+                      <div className="flex items-center gap-3 shrink-0">
+                        
+                        {/* Contenedor de la Imagen */}
+                        {product.image_url && (
+                          <div className="relative w-20 h-20 rounded-xl overflow-hidden shadow-sm border border-slate-100 bg-white">
+                            <Image
+                              src={product.image_url}
+                              alt={product.name}
+                              fill
+                              className="object-cover"
+                              sizes="80px"
+                            />
+                          </div>
+                        )}
+
+                        {isAvailable ? (
+                          <button
+                            onClick={() => onAddProduct(product)}
+                            className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-95 shrink-0 cursor-pointer shadow-2xs group ${
+                              isFeatured 
+                                ? 'bg-amber-100 hover:bg-amber-500 text-amber-600 hover:text-white' 
+                                : 'bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white'
+                            }`}
+                            aria-label={`Agregar ${product.name}`}
+                          >
+                            <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" />
+                          </button>
+                        ) : (
+                          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-3 py-2 rounded-xl shrink-0 select-none">
+                            {!isOpen ? 'Cerrado' : 'Agotado'}
+                          </span>
+                        )}
+                      </div>
+                      
                     </div>
                   );
                 })}

@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Product, Tenant, ModifierGroup, Modifier, TenantIngredient, ProductVariant } from '@/types';
 import { X, Layers, Plus, Pencil, Trash2, Check, Search, Link as LinkIcon } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
+import ImageUploader from './ImageUploader'; // Importación del Uploader
 
 interface EditProductModalProps {
   product: Product | null;
@@ -17,25 +18,23 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
   const [editProdName, setEditProdName] = useState(product?.name || '');
   const [editProdPrice, setEditProdPrice] = useState(product?.price?.toString() || '');
   const [editProdDesc, setEditProdDesc] = useState(product?.description || '');
+  const [editProdImage, setEditProdImage] = useState(product?.image_url || ''); // Estado para la imagen
   const [savingProduct, setSavingProduct] = useState(false);
 
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [newVariantName, setNewVariantName] = useState('');
   const [newVariantPrice, setNewVariantPrice] = useState('');
-  const [newVariantMaxMods, setNewVariantMaxMods] = useState(''); 
-  
+  const [newVariantMaxMods, setNewVariantMaxMods] = useState('');
   const [editingVariantState, setEditingVariantState] = useState<Record<string, { name: string; price: string }>>({});
   const [editingVariantMaxModsState, setEditingVariantMaxModsState] = useState<Record<string, string>>({});
 
   const [modifierGroups, setModifierGroups] = useState<ModifierGroup[]>([]);
   const [tenantGroups, setTenantGroups] = useState<{ id: string, name: string }[]>([]); 
   const [selectedGlobalGroupId, setSelectedGlobalGroupId] = useState('');
-  
   const [globalIngredients, setGlobalIngredients] = useState<TenantIngredient[]>([]);
   
   // Categorías globales para el autocompletado custom
   const [tenantCategories, setTenantCategories] = useState<{ id: string, name: string }[]>([]);
-
   const [loadingModifiers, setLoadingModifiers] = useState(true);
   
   // Estados para manejar los menús desplegables (Dropdowns)
@@ -46,11 +45,9 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupMin, setNewGroupMin] = useState(0);
   const [newGroupMax, setNewGroupMax] = useState(0);
-  
   const [modifierInputs, setModifierInputs] = useState<Record<string, { name: string; priceDelta: string; categoryLabel: string }>>({});
   const [editingModifierState, setEditingModifierState] = useState<Record<string, { name: string; priceDelta: string; categoryLabel?: string }>>({});
   const [editingGroupState, setEditingGroupState] = useState<Record<string, string>>({});
-
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -62,15 +59,15 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     message: '',
     onConfirm: () => {},
   });
-
+  
   const [prevProductId, setPrevProductId] = useState<string | undefined>(product?.id);
 
   if (product && product.id !== prevProductId) {
     setPrevProductId(product.id);
-    
     setEditProdName(product.name || '');
     setEditProdPrice(product.price?.toString() || '');
     setEditProdDesc(product.description || '');
+    setEditProdImage(product.image_url || ''); // Sincronizar al cambiar de producto
     
     setVariants(product.product_variants || []);
     setNewVariantName('');
@@ -165,7 +162,6 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     }
 
     void loadData();
-
     return () => {
       isMounted = false;
     };
@@ -182,19 +178,19 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
         name: editProdName.trim(),
         price: parseFloat(editProdPrice),
         description: editProdDesc.trim() || null,
+        image_url: editProdImage || null, // Guardar la imagen en Supabase
       })
       .eq('id', product.id);
-
+      
     if (!error) onReload();
     setSavingProduct(false);
   };
 
   const handleAddVariant = async () => {
     if (!newVariantName.trim() || !newVariantPrice.trim()) return;
-
     const parsedMax = parseInt(newVariantMaxMods, 10);
     const maxMods = isNaN(parsedMax) ? 1 : parsedMax;
-
+    
     const { data, error } = await supabase
       .from('product_variants')
       .insert([{
@@ -206,7 +202,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
       }])
       .select()
       .single();
-
+      
     if (!error && data) {
       setVariants([...variants, data]);
       setNewVariantName('');
@@ -222,10 +218,9 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
 
     const trimmedName = state.name.trim();
     const priceOverride = parseFloat(state.price) || 0;
-    
     const parsedStateMax = maxModsState !== undefined ? parseInt(maxModsState, 10) : NaN;
     const maxMods = isNaN(parsedStateMax) ? undefined : parsedStateMax;
-
+    
     const updatePayload: { name: string; price_override: number; max_modifier_selections?: number } = { 
       name: trimmedName, 
       price_override: priceOverride 
@@ -236,7 +231,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
       .from('product_variants')
       .update(updatePayload)
       .eq('id', variantId);
-
+      
     if (!error) {
       setVariants(variants.map(v => v.id === variantId ? { 
         ...v, 
@@ -274,7 +269,6 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
 
   const handleLinkGroup = async () => {
     if (!selectedGlobalGroupId) return;
-    
     if (modifierGroups.some(g => g.id === selectedGlobalGroupId)) {
       alert("Este grupo ya está vinculado al platillo.");
       return;
@@ -285,14 +279,14 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
       modifier_group_id: selectedGlobalGroupId,
       tenant_id: tenant.id
     }]);
-
+    
     if (!linkError) {
       const { data: groupData } = await supabase
         .from('modifier_groups')
         .select('*, modifiers(*, modifier_categories(name))')
         .eq('id', selectedGlobalGroupId)
         .single();
-      
+        
       if (groupData) {
         setModifierGroups([...modifierGroups, groupData as ModifierGroup]);
         setSelectedGlobalGroupId('');
@@ -302,7 +296,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
 
   const handleAddGroup = async () => {
     if (!newGroupName.trim()) return;
-
+    
     const { data: newGroup, error: groupError } = await supabase
       .from('modifier_groups')
       .insert([{
@@ -314,14 +308,14 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
       }])
       .select('*, modifiers(*)')
       .single();
-
+      
     if (!groupError && newGroup) {
       await supabase.from('product_modifier_groups').insert([{
         product_id: product.id,
         modifier_group_id: newGroup.id,
         tenant_id: tenant.id
       }]);
-
+      
       setModifierGroups([...modifierGroups, newGroup as ModifierGroup]);
       setTenantGroups([...tenantGroups, { id: newGroup.id, name: newGroup.name }]);
       setNewGroupName('');
@@ -352,7 +346,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
       if (field === 'min_selections') updated.is_required = value > 0;
       return updated;
     }));
-
+    
     const updateData: { min_selections?: number; max_selections?: number; is_required?: boolean } = { [field]: value };
     if (field === 'min_selections') updateData.is_required = value > 0;
     
@@ -364,7 +358,7 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
       .from('product_modifier_groups')
       .delete()
       .match({ product_id: product.id, modifier_group_id: groupId });
-
+      
     if (!error) {
       setModifierGroups(modifierGroups.filter((g) => g.id !== groupId));
     }
@@ -384,12 +378,12 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
     const trimmed = name.trim();
     const existing = globalIngredients.find(g => g.name.toLowerCase() === trimmed.toLowerCase());
     if (existing) return existing.id;
-
+    
     const { data, error } = await supabase
       .from('tenant_ingredients')
       .insert([{ tenant_id: tenant.id, name: trimmed, is_available: true }])
       .select().single();
-    
+      
     if (data && !error) {
       setGlobalIngredients(prev => [...prev, data]);
       return data.id;
@@ -400,15 +394,14 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
   const resolveModifierCategory = async (name: string): Promise<string | null> => {
     if (!name || !name.trim()) return null;
     const trimmed = name.trim().toUpperCase();
-    
     const existing = tenantCategories.find(c => c.name.toUpperCase() === trimmed);
     if (existing) return existing.id;
-
+    
     const { data, error } = await supabase
       .from('modifier_categories')
       .insert([{ tenant_id: tenant.id, name: trimmed }])
       .select('id, name').single();
-    
+      
     if (error) {
       console.error("Error SQL al crear categoría:", error);
       return null;
@@ -441,16 +434,14 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
         category_id: categoryId
       }])
       .select('*, modifier_categories(name)').single();
-
+      
     if (!error && data) {
       const resolvedCatName = tenantCategories.find(c => c.id === categoryId)?.name || input.categoryLabel?.trim().toUpperCase();
-
       const newModSafelyTyped: Modifier = { 
         ...data, 
         global_ingredient_id: data.global_ingredient_id ?? undefined,
         modifier_categories: resolvedCatName ? { name: resolvedCatName } : undefined
       };
-      
       setModifierGroups(modifierGroups.map((g) => g.id === groupId ? { ...g, modifiers: [...(g.modifiers || []), newModSafelyTyped] } : g));
       setModifierInputs({ ...modifierInputs, [groupId]: { name: '', priceDelta: '', categoryLabel: '' } });
       setActiveDropdown(null);
@@ -476,10 +467,9 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
         category_id: categoryId
       })
       .eq('id', modifierId);
-
+      
     if (!error) {
       const resolvedCatName = tenantCategories.find(c => c.id === categoryId)?.name || state.categoryLabel?.trim().toUpperCase();
-      
       setModifierGroups(modifierGroups.map((g) => g.id === groupId ? {
         ...g, modifiers: g.modifiers?.map((m) => m.id === modifierId ? { 
           ...m, 
@@ -490,7 +480,6 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
           modifier_categories: resolvedCatName ? { name: resolvedCatName } : undefined
         } : m)
       } : g));
-      
       const copy = { ...editingModifierState };
       delete copy[modifierId];
       setEditingModifierState(copy);
@@ -547,6 +536,13 @@ export function EditProductModal({ product, tenant, onClose, onReload }: EditPro
           <div className="overflow-y-auto flex-1 space-y-5 pr-1 pb-10">
             <form onSubmit={handleSaveProductEdit} className="space-y-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
               <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">Información General</h4>
+              
+              {/* Componente Uploader Integrado */}
+              <ImageUploader 
+                currentImageUrl={editProdImage} 
+                onUploadComplete={(url) => setEditProdImage(url)} 
+              />
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <input
                   type="text"

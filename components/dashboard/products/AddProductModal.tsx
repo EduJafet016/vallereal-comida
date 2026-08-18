@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { Category } from '@/types';
+import ImageUploader from './ImageUploader'; // <--- 1. Importar uploader
 
 export interface NewProductData {
   name: string;
@@ -10,6 +11,7 @@ export interface NewProductData {
   description: string;
   categoryId: string;
   newCategoryName: string;
+  imageUrl: string; // <--- Añadido al contrato de datos
 }
 
 interface AddProductModalProps {
@@ -32,23 +34,25 @@ export function AddProductModal({
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [imageUrl, setImageUrl] = useState(''); // <--- 2. Estado de imagen
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSave({ name, price, description, categoryId, newCategoryName });
+    await onSave({ name, price, description, categoryId, newCategoryName, imageUrl }); // <--- Enviar imageUrl
     // Limpiamos tras guardar
     setName('');
     setPrice('');
     setDescription('');
     setCategoryId('');
     setNewCategoryName('');
+    setImageUrl('');
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-xl space-y-4">
+      <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center border-b pb-3">
           <h3 className="font-bold text-gray-900 text-base">Nuevo Platillo</h3>
           <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 cursor-pointer">
@@ -57,6 +61,9 @@ export function AddProductModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
+          {/* Componente de Subida de Imagen */}
+          <ImageUploader onUploadComplete={(url) => setImageUrl(url)} />
+
           <input
             type="text"
             required

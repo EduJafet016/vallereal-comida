@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import { Tenant, Product, Category } from '@/types';
 import { Plus, RefreshCw, Utensils, Pencil, Trash2, Eye, EyeOff, Layers, Loader2, ListTree, Star, GripVertical } from 'lucide-react';
@@ -96,8 +97,8 @@ function SortableItem({
           <GripVertical className="w-4 h-4" />
         </button>
 
-        <div className="min-w-0 flex-1">
-          {/* Ajuste visual: items-start, break-words y shrink-0 en la estrella */}
+        {/* Lado izquierdo: Info del producto */}
+        <div className="min-w-0 flex-1 flex flex-col justify-center">
           <div className="flex items-start gap-1.5 pr-2">
             <h3 className="font-bold text-slate-900 text-xs leading-tight break-words">
               {product.name}
@@ -107,9 +108,8 @@ function SortableItem({
             )}
           </div>
           
-          {/* Ajuste visual: line-clamp-2 en lugar de truncate */}
           {product.description && (
-            <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+            <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed pr-2">
               {product.description}
             </p>
           )}
@@ -131,62 +131,81 @@ function SortableItem({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 shrink-0">
-        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
-          <button 
-            onClick={() => toggleFeatured(product)} 
-            disabled={updatingId === product.id}
-            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isFeatured ? 'text-amber-500 hover:text-amber-600 bg-amber-50' : 'text-slate-400 hover:text-amber-500'}`}
-            title={isFeatured ? 'Quitar destacado' : 'Destacar platillo'}
-          >
-            <Star className={`w-3.5 h-3.5 ${isFeatured ? 'fill-amber-500' : ''}`} />
-          </button>
-          <div className="w-px h-4 bg-slate-200 mx-1"></div>
-          <button 
-            onClick={() => setEditingProduct(product)} 
-            className="p-1.5 text-slate-500 hover:text-[#007A55] rounded-lg transition-colors cursor-pointer"
-            title="Editar"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-          </button>
-          <button 
-            onClick={() => handleDeleteProduct(product)} 
-            className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
-            title="Eliminar"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
+      {/* Lado derecho: Imagen + Controles Administrativos */}
+      <div className="flex items-center gap-3 shrink-0">
+        
+        {/* Renderizado condicional de la imagen */}
+        {product.image_url && (
+          <div className="shrink-0 rounded-lg overflow-hidden border border-slate-200 shadow-sm w-16 h-16 relative bg-white">
+            <Image
+              src={product.image_url}
+              alt={product.name}
+              fill
+              className="object-cover"
+              sizes="64px"
+            />
+          </div>
+        )}
 
-        <div className="flex items-center gap-0.5 bg-white border border-slate-200 px-2 py-1 rounded-xl shadow-2xs">
-          <span className="text-xs font-bold text-slate-400">$</span>
-          <input
-            type="number"
-            step="0.5"
-            defaultValue={product.price}
-            onBlur={(e) => updatePrice(product.id, parseFloat(e.target.value))}
-            className="w-12 text-xs font-bold text-slate-900 bg-transparent text-center focus:outline-none"
-          />
-        </div>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+            <button 
+              onClick={() => toggleFeatured(product)} 
+              disabled={updatingId === product.id}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isFeatured ? 'text-amber-500 hover:text-amber-600 bg-amber-50' : 'text-slate-400 hover:text-amber-500'}`}
+              title={isFeatured ? 'Quitar destacado' : 'Destacar platillo'}
+            >
+              <Star className={`w-3.5 h-3.5 ${isFeatured ? 'fill-amber-500' : ''}`} />
+            </button>
+            <div className="w-px h-4 bg-slate-200 mx-1"></div>
+            <button 
+              onClick={() => setEditingProduct(product)} 
+              className="p-1.5 text-slate-500 hover:text-[#007A55] rounded-lg transition-colors cursor-pointer"
+              title="Editar"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button 
+              onClick={() => handleDeleteProduct(product)} 
+              className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+              title="Eliminar"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
-        <button 
-          disabled={updatingId === product.id} 
-          onClick={() => toggleAvailability(product)} 
-          className={`p-2 rounded-xl border flex items-center transition-all cursor-pointer shadow-2xs ${
-            product.is_available 
-              ? 'bg-emerald-50 text-[#007A55] border-emerald-200 hover:bg-emerald-100' 
-              : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-          }`}
-          title={product.is_available ? 'Marcar agotado' : 'Marcar disponible'}
-        >
-          {updatingId === product.id ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : product.is_available ? (
-            <Eye className="w-3.5 h-3.5" />
-          ) : (
-            <EyeOff className="w-3.5 h-3.5" />
-          )}
-        </button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-0.5 bg-white border border-slate-200 px-2 py-1 rounded-xl shadow-2xs">
+              <span className="text-xs font-bold text-slate-400">$</span>
+              <input
+                type="number"
+                step="0.5"
+                defaultValue={product.price}
+                onBlur={(e) => updatePrice(product.id, parseFloat(e.target.value))}
+                className="w-12 text-xs font-bold text-slate-900 bg-transparent text-center focus:outline-none"
+              />
+            </div>
+
+            <button 
+              disabled={updatingId === product.id} 
+              onClick={() => toggleAvailability(product)} 
+              className={`p-2 rounded-xl border flex items-center transition-all cursor-pointer shadow-2xs ${
+                product.is_available 
+                  ? 'bg-emerald-50 text-[#007A55] border-emerald-200 hover:bg-emerald-100' 
+                  : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+              }`}
+              title={product.is_available ? 'Marcar agotado' : 'Marcar disponible'}
+            >
+              {updatingId === product.id ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : product.is_available ? (
+                <Eye className="w-3.5 h-3.5" />
+              ) : (
+                <EyeOff className="w-3.5 h-3.5" />
+              )}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -378,6 +397,7 @@ export function ProductsSection({ tenant, categories, products: initialProducts,
         name: data.name.trim(),
         description: data.description.trim() || null,
         price: parseFloat(data.price),
+        image_url: data.imageUrl || null, // <-- Aseguramos guardar la imagen
         is_available: true,
         sort_order: categoryProductsCount,
       }]);
