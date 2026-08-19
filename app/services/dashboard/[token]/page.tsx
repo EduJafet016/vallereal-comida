@@ -79,7 +79,7 @@ export default function ServiceDashboardPage({ params }: PageProps) {
   // Función para regresar asegurando mantener la pestaña de servicios activa
   const handleGoBack = () => {
     localStorage.setItem('valle_real_active_tab', 'servicios');
-    router.push('/?tab=servicios');
+    router.push('/?');
   };
 
   // Lógica para Cerrar Sesión
@@ -88,7 +88,7 @@ export default function ServiceDashboardPage({ params }: PageProps) {
     sessionStorage.removeItem('current_service_token');
     localStorage.removeItem(`service_token_${token}`);
     
-    router.push('/?tab=servicios');
+    router.push('/?');
   };
 
   // Lógica para Eliminar Perfil Definitivamente
@@ -108,7 +108,7 @@ export default function ServiceDashboardPage({ params }: PageProps) {
       localStorage.removeItem(`service_token_${token}`);
 
       alert('Tu perfil ha sido eliminado correctamente.');
-      router.push('/?tab=servicios');
+      router.push('/?');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error inesperado';
       alert(`Error al eliminar el perfil: ${message}`);
