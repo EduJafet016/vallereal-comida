@@ -46,7 +46,7 @@ export function ServiceAuthModal({ isOpen, onClose }: ServiceAuthModalProps) {
     return clean;
   };
 
-  // Iniciar sesión
+  // Iniciar sesión (CON PROTECCIÓN CONTRA FUERZA BRUTA)
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
@@ -59,6 +59,22 @@ export function ServiceAuthModal({ isOpen, onClose }: ServiceAuthModalProps) {
 
     setLoggingIn(true);
     try {
+      // 1. Verificar si la cuenta está bloqueada (3 intentos en los últimos 30 min)
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      const { count: failedAttempts } = await supabase
+        .from('login_attempts')
+        .select('*', { count: 'exact', head: true })
+        .eq('identifier', finalPhone)
+        .eq('success', false)
+        .gt('attempted_at', thirtyMinutesAgo);
+
+      if (failedAttempts && failedAttempts >= 3) {
+        setLoginError("Demasiados intentos fallidos. Tu cuenta está bloqueada por 30 minutos.");
+        setLoggingIn(false);
+        return;
+      }
+
+      // 2. Buscar al usuario
       const { data, error } = await supabase
         .from('service_providers')
         .select('token, admin_pin')
@@ -67,14 +83,30 @@ export function ServiceAuthModal({ isOpen, onClose }: ServiceAuthModalProps) {
 
       if (error || !data) {
         setLoginError('No se encontró ningún profesional con este número.');
+        setLoggingIn(false);
         return;
       }
 
+      // 3. Validar el PIN
       if (data.admin_pin !== loginPin) {
-        setLoginError('El PIN es incorrecto.');
+        // Registrar intento fallido
+        await supabase.from('login_attempts').insert({ identifier: finalPhone, success: false });
+        
+        const intentosRestantes = 2 - (failedAttempts || 0);
+        if (intentosRestantes > 0) {
+          setLoginError(`El PIN es incorrecto. Te quedan ${intentosRestantes} intento(s).`);
+        } else {
+          setLoginError("Has sido bloqueado por 30 minutos por seguridad.");
+        }
+        
+        setLoggingIn(false);
         return;
       }
 
+      // 4. Si el PIN es correcto, registrar éxito (para reiniciar el contador)
+      await supabase.from('login_attempts').insert({ identifier: finalPhone, success: true });
+
+      // Guardar sesión y redirigir
       const storage = rememberMe ? localStorage : sessionStorage;
       storage.setItem(`service_token_${data.token}`, 'true');
       storage.setItem('current_service_token', data.token);
@@ -88,7 +120,7 @@ export function ServiceAuthModal({ isOpen, onClose }: ServiceAuthModalProps) {
     }
   };
 
-  // Registrar nuevo servicio (Corregido con maybeSingle para bloquear duplicados)
+  // Registrar nuevo servicio
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalPhone = normalizePhone(regPhone);
@@ -100,14 +132,12 @@ export function ServiceAuthModal({ isOpen, onClose }: ServiceAuthModalProps) {
 
     setRegistering(true);
     try {
-      // 1. Verificamos de forma segura si el número ya existe usando maybeSingle()
       const { data: existingUser } = await supabase
         .from('service_providers')
         .select('token')
         .eq('phone', finalPhone)
         .maybeSingle();
 
-      // 2. Si ya existe, bloqueamos el registro y lo mandamos a login con el número precargado
       if (existingUser) {
         alert('Ya tienes una cuenta registrada con este número. Por favor, inicia sesión con tu PIN.');
         setLoginPhone(regPhone); 
@@ -116,7 +146,6 @@ export function ServiceAuthModal({ isOpen, onClose }: ServiceAuthModalProps) {
         return;
       }
 
-      // 3. Si no existe, procedemos con el registro normal
       const newToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
 
       const { data, error } = await supabase

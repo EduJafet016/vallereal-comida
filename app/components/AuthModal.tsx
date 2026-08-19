@@ -47,6 +47,22 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
     setLoggingIn(true);
     try {
+      // 1. Verificar bloqueo por tiempo (3 intentos fallidos en los últimos 30 min)
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      const { count: failedAttempts } = await supabase
+        .from('login_attempts')
+        .select('*', { count: 'exact', head: true })
+        .eq('identifier', cleanPhone)
+        .eq('success', false)
+        .gt('attempted_at', thirtyMinutesAgo);
+
+      if (failedAttempts && failedAttempts >= 3) {
+        setLoginError('Demasiados intentos fallidos. Tu cuenta está bloqueada por 30 minutos.');
+        setLoggingIn(false);
+        return;
+      }
+
+      // 2. Buscar al comercio
       const { data, error } = await supabase
         .from('tenants')
         .select('admin_token, admin_pin')
@@ -55,18 +71,33 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
       if (error || !data) {
         setLoginError('No se encontró ningún negocio registrado con este número.');
+        setLoggingIn(false);
         return;
       }
 
+      // 3. Validar el PIN
       if (data.admin_pin !== loginPin) {
-        setLoginError('El PIN es incorrecto.');
+        // Registrar intento fallido
+        await supabase.from('login_attempts').insert({ identifier: cleanPhone, success: false });
+
+        const intentosRestantes = 2 - (failedAttempts || 0);
+        if (intentosRestantes > 0) {
+          setLoginError(`El PIN es incorrecto. Te quedan ${intentosRestantes} intento(s).`);
+        } else {
+          setLoginError('Has sido bloqueado por 30 minutos por seguridad.');
+        }
+
+        setLoggingIn(false);
         return;
       }
+
+      // 4. Si es correcto, registrar éxito para reiniciar métrica de fallos
+      await supabase.from('login_attempts').insert({ identifier: cleanPhone, success: true });
 
       // Almacenamiento condicional según "Recuérdame" y registro del tenant activo actual
       const storage = rememberMe ? localStorage : sessionStorage;
       storage.setItem(`auth_token_${data.admin_token}`, 'true');
-      storage.setItem('current_tenant_token', data.admin_token); // <-- Evita que tome otro restaurante por error
+      storage.setItem('current_tenant_token', data.admin_token); 
 
       router.push(`/dashboard/${data.admin_token}`);
       onClose();
@@ -118,7 +149,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         alert(`Error al registrar: ${error.message}`);
       } else if (data) {
         localStorage.setItem(`auth_token_${adminToken}`, 'true');
-        localStorage.setItem('current_tenant_token', adminToken); // <-- Sincronizado también aquí
+        localStorage.setItem('current_tenant_token', adminToken);
         router.push(`/dashboard/${adminToken}`);
         onClose();
       }
