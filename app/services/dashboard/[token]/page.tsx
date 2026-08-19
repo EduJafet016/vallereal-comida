@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabase';
 import { 
   ArrowLeft, Store, Phone, Wrench, Zap, Stethoscope, 
   Droplet, Hammer, Scissors, ShieldAlert, Sparkles, 
-  Paintbrush, Car, Key, Laptop, Truck, Save, CheckCircle2 
+  Paintbrush, Car, Key, Laptop, Truck, Save, CheckCircle2,
+  LogOut, Trash2, AlertTriangle, Loader2 
 } from 'lucide-react';
 
 interface PageProps {
@@ -49,6 +50,10 @@ export default function ServiceDashboardPage({ params }: PageProps) {
   const [successMessage, setSuccessMessage] = useState(false);
   const [error, setError] = useState('');
 
+  // Estados para el flujo de eliminación y cierre de sesión
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Cargar datos del profesional según el token de la URL
   useEffect(() => {
     async function fetchProvider() {
@@ -73,7 +78,45 @@ export default function ServiceDashboardPage({ params }: PageProps) {
   // Función para regresar asegurando mantener la pestaña de servicios activa
   const handleGoBack = () => {
     localStorage.setItem('valle_real_active_tab', 'servicios');
-    router.push('/');
+    router.push('/?tab=servicios');
+  };
+
+  // Lógica para Cerrar Sesión
+  const handleLogout = () => {
+    localStorage.removeItem('current_service_token');
+    sessionStorage.removeItem('current_service_token');
+    localStorage.removeItem(`service_token_${token}`);
+    
+    router.push('/?tab=servicios');
+  };
+
+  // Lógica para Eliminar Perfil Definitivamente
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('service_providers')
+        .delete()
+        .eq('token', token);
+
+      if (error) throw error;
+
+      // Limpiar credenciales locales
+      localStorage.removeItem('current_service_token');
+      sessionStorage.removeItem('current_service_token');
+      localStorage.removeItem(`service_token_${token}`);
+
+      alert('Tu perfil ha sido eliminado correctamente.');
+      router.push('/?tab=servicios');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        alert(`Error al eliminar el perfil: ${err.message}`);
+      } else {
+        alert('Error desconocido al eliminar el perfil.');
+      }
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+    }
   };
 
   // Normalizador estandarizado a 52 para México
@@ -113,7 +156,6 @@ export default function ServiceDashboardPage({ params }: PageProps) {
     if (error) {
       setError('Error al guardar los cambios.');
     } else {
-      // Actualizamos localmente el estado con el teléfono ya normalizado
       setProvider({ ...provider, phone: finalPhone });
       setSuccessMessage(true);
       setTimeout(() => setSuccessMessage(false), 3000);
@@ -285,6 +327,74 @@ export default function ServiceDashboardPage({ params }: PageProps) {
             {saving ? 'Guardando cambios...' : 'Guardar Cambios'}
           </button>
         </form>
+
+        {/* Sección de Acciones de Sesión y Cuenta (Cerrar Sesión / Eliminar) */}
+        <div className="px-4 space-y-3 pt-2">
+          <div className="grid grid-cols-2 gap-3">
+            {/* Botón Cerrar Sesión */}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-full bg-white hover:bg-slate-100 text-slate-700 font-bold py-3 px-3 rounded-2xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-slate-200/80 shadow-xs"
+            >
+              <LogOut className="w-3.5 h-3.5 text-slate-500" /> Cerrar Sesión
+            </button>
+
+            {/* Botón Eliminar Perfil */}
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(true)}
+              className="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-3 px-3 rounded-2xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-rose-200/60 shadow-xs"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-500" /> Eliminar Perfil
+            </button>
+          </div>
+        </div>
+
+        {/* Modal de Confirmación de Eliminación (Evita accidentes) */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-6 shadow-2xl space-y-5 border border-slate-200 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center mx-auto">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+
+              <div className="space-y-1.5">
+                <h3 className="text-base font-extrabold text-slate-900">¿Eliminar tu perfil?</h3>
+                <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                  Esta acción es permanente y borrará tu tarjeta del directorio de Valle Real. Tendrás que registrarte de nuevo si deseas aparecer otra vez.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => setShowDeleteModal(false)}
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-2xl text-xs transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={handleDeleteAccount}
+                  className="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-3 rounded-2xl text-xs transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Borrando...
+                    </>
+                  ) : (
+                    'Sí, eliminar'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
     </div>
   );

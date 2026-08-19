@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { MapPin, Download, Store } from 'lucide-react';
 import { AuthModal } from '@/app/components/AuthModal';
@@ -19,7 +19,8 @@ export function HomeHeader({ activeTab, isInstalled, onInstallClick }: HomeHeade
   const [isComidaAuthOpen, setIsComidaAuthOpen] = useState(false);
   const [isServiceAuthOpen, setIsServiceAuthOpen] = useState(false);
 
-  const [activeDashboardUrl] = useState<string | null>(() => {
+  // Se recalcula automáticamente cada vez que cambia 'isServicios' o la pestaña
+  const activeDashboardUrl = useMemo(() => {
     if (typeof window === 'undefined') return null;
     if (isServicios) {
       const currentServiceToken = localStorage.getItem('current_service_token') || sessionStorage.getItem('current_service_token');
@@ -28,7 +29,7 @@ export function HomeHeader({ activeTab, isInstalled, onInstallClick }: HomeHeade
       const currentTenantToken = localStorage.getItem('current_tenant_token') || sessionStorage.getItem('current_tenant_token');
       return currentTenantToken ? `/dashboard/${currentTenantToken}` : null;
     }
-  });
+  }, [isServicios]);
 
   const handleOpenAuthModal = () => {
     if (isServicios) {

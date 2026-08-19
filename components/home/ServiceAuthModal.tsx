@@ -88,7 +88,7 @@ export function ServiceAuthModal({ isOpen, onClose }: ServiceAuthModalProps) {
     }
   };
 
-  // Registrar nuevo servicio
+  // Registrar nuevo servicio (Corregido con maybeSingle para bloquear duplicados)
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalPhone = normalizePhone(regPhone);
@@ -100,6 +100,23 @@ export function ServiceAuthModal({ isOpen, onClose }: ServiceAuthModalProps) {
 
     setRegistering(true);
     try {
+      // 1. Verificamos de forma segura si el número ya existe usando maybeSingle()
+      const { data: existingUser } = await supabase
+        .from('service_providers')
+        .select('token')
+        .eq('phone', finalPhone)
+        .maybeSingle();
+
+      // 2. Si ya existe, bloqueamos el registro y lo mandamos a login con el número precargado
+      if (existingUser) {
+        alert('Ya tienes una cuenta registrada con este número. Por favor, inicia sesión con tu PIN.');
+        setLoginPhone(regPhone); 
+        setActiveTab('login');   
+        setRegistering(false);
+        return;
+      }
+
+      // 3. Si no existe, procedemos con el registro normal
       const newToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
 
       const { data, error } = await supabase
