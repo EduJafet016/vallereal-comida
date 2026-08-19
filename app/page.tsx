@@ -17,8 +17,16 @@ export default function RootHomePage() {
   const [loading, setLoading] = useState(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   
-  // Nuevo estado para el Floating Toggle
-  const [activeTab, setActiveTab] = useState<'comidas' | 'servicios'>('comidas');
+  // Inicialización limpia del estado leyendo el localStorage sin disparar efectos en cascada
+  const [activeTab, setActiveTab] = useState<'comidas' | 'servicios'>(() => {
+    if (typeof window === 'undefined') return 'comidas';
+    const savedTab = localStorage.getItem('valle_real_active_tab');
+    if (savedTab === 'servicios') {
+      localStorage.removeItem('valle_real_active_tab');
+      return 'servicios';
+    }
+    return 'comidas';
+  });
 
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(() => {

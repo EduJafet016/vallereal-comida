@@ -7,7 +7,7 @@ import {
   ArrowLeft, Store, Phone, Wrench, Zap, Stethoscope, 
   Droplet, Hammer, Scissors, ShieldAlert, Sparkles, 
   Paintbrush, Car, Key, Laptop, Truck, Save, CheckCircle2,
-  LogOut, Trash2, AlertTriangle, Loader2 
+  LogOut, Trash2, AlertTriangle, Loader2, MessageSquareText 
 } from 'lucide-react';
 
 interface PageProps {
@@ -22,6 +22,7 @@ interface ServiceProvider {
   phone: string;
   icon: string;
   token: string;
+  custom_message?: string;
 }
 
 const AVAILABLE_ICONS = [
@@ -109,11 +110,8 @@ export default function ServiceDashboardPage({ params }: PageProps) {
       alert('Tu perfil ha sido eliminado correctamente.');
       router.push('/?tab=servicios');
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        alert(`Error al eliminar el perfil: ${err.message}`);
-      } else {
-        alert('Error desconocido al eliminar el perfil.');
-      }
+      const message = err instanceof Error ? err.message : 'Error inesperado';
+      alert(`Error al eliminar el perfil: ${message}`);
       setIsDeleting(false);
       setShowDeleteModal(false);
     }
@@ -130,7 +128,7 @@ export default function ServiceDashboardPage({ params }: PageProps) {
     return clean;
   };
 
-  // Guardar cambios en Supabase con teléfono normalizado
+  // Guardar cambios en Supabase incluyendo el mensaje personalizado
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!provider) return;
@@ -148,6 +146,7 @@ export default function ServiceDashboardPage({ params }: PageProps) {
         description: provider.description,
         phone: finalPhone,
         icon: provider.icon,
+        custom_message: provider.custom_message || null,
       })
       .eq('token', token);
 
@@ -288,6 +287,24 @@ export default function ServiceDashboardPage({ params }: PageProps) {
                 required
                 className="w-full p-3.5 bg-slate-50 rounded-xl text-xs border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 resize-none"
               />
+            </div>
+
+            {/* Mensaje Personalizado para WhatsApp */}
+            <div className="space-y-1.5 pt-2 border-t border-slate-100">
+              <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                <MessageSquareText className="w-3.5 h-3.5 text-blue-500" />
+                Mensaje automático para WhatsApp (Opcional)
+              </label>
+              <textarea
+                value={provider.custom_message || ''}
+                onChange={(e) => setProvider({ ...provider, custom_message: e.target.value })}
+                rows={2}
+                placeholder="Ej. Hola, vi su servicio en Valle Real y me interesa cotizar."
+                className="w-full p-3.5 bg-slate-50 rounded-xl text-xs border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 resize-none"
+              />
+              <p className="text-[10px] text-slate-400">
+                Este es el texto que aparecerá redactado automáticamente cuando un vecino te escriba por WhatsApp.
+              </p>
             </div>
           </div>
 
