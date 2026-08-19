@@ -3,16 +3,22 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { BeforeInstallPromptEvent, NavigatorStandalone, TenantWithMenu } from '@/types';
-import { Search, Heart } from 'lucide-react';
+import { Search, Heart, } from 'lucide-react';
 import { AuthModal } from '@/app/components/AuthModal';
 import { HomeHeader } from '@/components/home/HomeHeader';
 import { TenantList } from '@/components/home/TenantList';
+import { FloatingToggle } from '@/components/ui/FloatingToggle';
+import { ServiceList } from '@/components/home/ServiceList';
+
 
 export default function RootHomePage() {
   const [tenants, setTenants] = useState<TenantWithMenu[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  
+  // Nuevo estado para el Floating Toggle
+  const [activeTab, setActiveTab] = useState<'comidas' | 'servicios'>('comidas');
 
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(() => {
@@ -121,29 +127,35 @@ export default function RootHomePage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-slate-50/60 flex flex-col justify-between pb-8">
+    <main className="min-h-screen bg-slate-50/60 flex flex-col justify-between pb-24 relative">
       <div>
         <HomeHeader
+          activeTab={activeTab}
           isInstalled={isInstalled}
           onInstallClick={handleInstallClick}
-          onOpenAuth={() => setIsAuthOpen(true)}
         />
 
-        {/* BARRA DE BÚSQUEDA STICKY */}
-        <div className="sticky top-0 z-40 bg-slate-50/90 backdrop-blur-md py-3 px-4 shadow-xs">
-          <div className="max-w-md mx-auto relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-4 top-3.5 z-10 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Buscar negocio, categoría o platillo..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 bg-white text-slate-900 placeholder:text-slate-400 rounded-2xl text-xs font-medium shadow-md shadow-black/5 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all border border-slate-200/80"
-            />
-          </div>
-        </div>
+        {activeTab === 'comidas' ? (
+          <>
+            {/* BARRA DE BÚSQUEDA STICKY */}
+            <div className="sticky top-0 z-40 bg-slate-50/90 backdrop-blur-md py-3 px-4 shadow-xs">
+              <div className="max-w-md mx-auto relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-4 top-3.5 z-10 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Buscar negocio, categoría o platillo..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3 bg-white text-slate-900 placeholder:text-slate-400 rounded-2xl text-xs font-medium shadow-md shadow-black/5 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all border border-slate-200/80"
+                />
+              </div>
+            </div>
 
-        <TenantList tenants={tenants} loading={loading} searchQuery={search} />
+            <TenantList tenants={tenants} loading={loading} searchQuery={search} />
+          </>
+        ) : (
+          <ServiceList />
+        )}
 
         <div className="pt-8 pb-4 text-center space-y-1 max-w-md mx-auto px-4">
           <p className="text-xs font-semibold text-slate-400 flex items-center justify-center gap-1">
@@ -155,6 +167,9 @@ export default function RootHomePage() {
         </div>
       </div>
 
+      {/* INYECCIÓN DEL FLOATING TOGGLE */}
+      <FloatingToggle activeTab={activeTab} onChange={setActiveTab} />
+      
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
     </main>
   );
