@@ -13,22 +13,22 @@ interface TenantListProps {
   searchQuery: string;
 }
 
+// Categorías con palabras clave (keywords) semánticas para un filtrado flexible
+const CATEGORIES_CONFIG = [
+  { id: 'all', label: 'Todos', icon: '🍽️', keywords: [] },
+  { id: 'postres', label: 'Postres', icon: '🍰', keywords: ['postre', 'postres', 'flan', 'pastel', 'panaderia', 'dulce', 'helado', 'reposteria'] },
+  { id: 'pizza', label: 'Pizza', icon: '🍕', keywords: ['pizza', 'pizzas', 'pizzeria', 'italian'] },
+  { id: 'hamburguesas', label: 'Hamburguesas', icon: '🍔', keywords: ['burger', 'hamburguesa', 'hamburguesas', 'papas', 'fast food'] },
+  { id: 'tortas', label: 'Tortas', icon: '🌮', keywords: ['torta', 'tortas', 'taco', 'tacos', 'antojitos', 'mexicana'] },
+  { id: 'bebidas', label: 'Bebidas', icon: '🥤', keywords: ['agua', 'aguas', 'malteada','malteadas','bebida', 'bebidas', 'cafe', 'jugo', 'refresco', 'smoothie'] },
+];
+
 export function TenantList({ tenants, loading, searchQuery }: TenantListProps) {
   // Estado para la pestaña activa ('active' para listos/con menú, 'pending' para configuración inicial)
   const [activeTab, setActiveTab] = useState<'active' | 'pending'>('active');
   
   // Estado para la categoría seleccionada en los botones con iconos
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-
-  // Listado de categorías rápidas con iconos
-  const categoriesList = [
-    { id: 'all', label: 'Todos', icon: '🍽️' },
-    { id: 'postres', label: 'Postres', icon: '🍰' },
-    { id: 'pizza', label: 'Pizza', icon: '🍕' },
-    { id: 'hamburguesas', label: 'Burgers', icon: '🍔' },
-    { id: 'tortas', label: 'Tortas', icon: '🌮' },
-    { id: 'bebidas', label: 'Bebidas', icon: '🥤' },
-  ];
 
   // 1. Filtrar por búsqueda y calcular completitud + estado de salud
   const processedTenants = useMemo(() => {
@@ -41,26 +41,41 @@ export function TenantList({ tenants, loading, searchQuery }: TenantListProps) {
     });
   }, [tenants]);
 
-  // 2. Filtrar por texto de búsqueda, pestaña, categoría seleccionada y ordenar inteligentemente
+  // 2. Filtrar por texto de búsqueda, pestaña, categoría con palabras clave y ordenar inteligentemente
   const filteredTenants = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
+    const currentCatObj = CATEGORIES_CONFIG.find(c => c.id === selectedCategory) || CATEGORIES_CONFIG[0];
 
     return processedTenants
       .filter((tenant) => {
         // Filtro por pestañas de estado (Activos / Pendientes)
         if (tenant.health.status !== activeTab) return false;
 
-        // Filtro por categoría rápida de iconos
+        // Filtro por categoría rápida usando el sistema de palabras clave semánticas
         if (selectedCategory !== 'all') {
-          const matchesCategory = tenant.categories?.some((cat: Pick<Category, 'name'>) => 
-            cat.name.toLowerCase().includes(selectedCategory)
-          ) || tenant.name.toLowerCase().includes(selectedCategory) ||
-             tenant.products?.some(p => p.name.toLowerCase().includes(selectedCategory));
+          const tenantText = `${tenant.name} ${tenant.description || ''}`.toLowerCase();
           
-          if (!matchesCategory) return false;
+          const matchesCategoryName = tenant.categories?.some((cat: Pick<Category, 'name'>) => 
+            cat.name.toLowerCase().includes(selectedCategory)
+          );
+
+          const matchesTenantText = tenantText.includes(selectedCategory);
+
+          const matchesKeyword = currentCatObj.keywords.some(keyword => 
+            tenantText.includes(keyword) || tenant.categories?.some(cat => cat.name.toLowerCase().includes(keyword))
+          );
+
+          const matchesProduct = tenant.products?.some(p => {
+            const prodText = `${p.name} ${p.description || ''}`.toLowerCase();
+            return currentCatObj.keywords.some(kw => prodText.includes(kw)) || prodText.includes(selectedCategory);
+          });
+          
+          if (!matchesCategoryName && !matchesTenantText && !matchesKeyword && !matchesProduct) {
+            return false;
+          }
         }
 
-        // Si no hay búsqueda por texto, pasa los filtros anteriores
+        // Si no hay búsqueda por texto adicional, pasa los filtros anteriores
         if (!query) return true;
 
         const matchTenant = 
@@ -119,16 +134,15 @@ export function TenantList({ tenants, loading, searchQuery }: TenantListProps) {
         </div>
       </div>
 
-{/* Carrusel de Categorías con desplazamiento optimizado para PC y Móvil */}
+      {/* Carrusel de Categorías con desplazamiento optimizado para PC y Móvil */}
       <div className="relative group">
-        {/* Degradado indicador en el borde derecho para sugerir que hay más contenido */}
         <div className="absolute right-0 top-0 bottom-2 w-10 bg-gradient-to-l from-slate-50/90 to-transparent pointer-events-none z-10 transition-opacity" />
 
         <div 
           id="categories-container"
           className="flex gap-2 overflow-x-auto pb-2 scrollbar-none px-1 scroll-smooth"
         >
-          {categoriesList.map((cat) => (
+          {CATEGORIES_CONFIG.map((cat) => (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
@@ -144,7 +158,7 @@ export function TenantList({ tenants, loading, searchQuery }: TenantListProps) {
           ))}
         </div>
 
-        {/* Botones de desplazamiento para PC (visibles en pantallas medianas en adelante) */}
+        {/* Botones de desplazamiento para PC */}
         <button 
           onClick={() => {
             const container = document.getElementById('categories-container');
@@ -234,7 +248,6 @@ export function TenantList({ tenants, loading, searchQuery }: TenantListProps) {
                 }`}
               >
                 <div className="flex items-center gap-4.5">
-                  {/* Logo más grande para mayor visibilidad */}
                   <div
                     className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl sm:rounded-3xl shrink-0 flex items-center justify-center font-black text-xl transition-all shadow-xs ${
                       isOpen

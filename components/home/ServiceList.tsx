@@ -18,20 +18,20 @@ interface ServiceProvider {
 }
 
 const CATEGORIES = [
-  { label: 'Todos', emoji: '✨', iconKey: 'all' },
-  { label: 'Plomería', emoji: '🚰', iconKey: 'plumbing' },
-  { label: 'Electricidad', emoji: '⚡', iconKey: 'zap' },
-  { label: 'Salud', emoji: '🩺', iconKey: 'medical' },
-  { label: 'Carpintería', emoji: '🪵', iconKey: 'hammer' },
-  { label: 'Cerrajería', emoji: '🔐', iconKey: 'lock' },
-  { label: 'Mecánica', emoji: '🔧', iconKey: 'car' },
-  { label: 'Limpieza', emoji: '🧹', iconKey: 'clean' },
-  { label: 'Pintura', emoji: '🎨', iconKey: 'paint' },
-  { label: 'Tecnología', emoji: '💻', iconKey: 'tech' },
-  { label: 'Estética', emoji: '✂️', iconKey: 'scissors' },
-  { label: 'Fletes', emoji: '🚚', iconKey: 'delivery' },
-  { label: 'Seguridad', emoji: '🛡️', iconKey: 'security' },
-  { label: 'Otros', emoji: '🛠️', iconKey: 'wrench' }
+  { label: 'Todos', emoji: '✨', iconKey: 'all', keywords: [] },
+  { label: 'Plomería', emoji: '🚰', iconKey: 'plumbing', keywords: ['plomero', 'plomeria', 'plomería', 'fuga', 'tuberia', 'agua'] },
+  { label: 'Electricidad', emoji: '⚡', iconKey: 'zap', keywords: ['electricista', 'electricidad', 'luz', 'cableado', 'cortocircuito'] },
+  { label: 'Salud', emoji: '🩺', iconKey: 'medical', keywords: ['medico', 'doctor', 'enfermera', 'salud', 'clinica'] },
+  { label: 'Carpintería', emoji: '🪵', iconKey: 'hammer', keywords: ['carpintero', 'carpinteria', 'madera', 'muebles'] },
+  { label: 'Cerrajería', emoji: '🔐', iconKey: 'lock', keywords: ['cerrajero', 'cerrajeria', 'chapas', 'llaves'] },
+  { label: 'Mecánica', emoji: '🔧', iconKey: 'car', keywords: ['mecanico', 'mecanica', 'auto', 'carro', 'taller'] },
+  { label: 'Limpieza', emoji: '🧹', iconKey: 'clean', keywords: ['limpieza', 'aseo', 'empleada', 'domestica'] },
+  { label: 'Pintura', emoji: '🎨', iconKey: 'paint', keywords: ['pintor', 'pintura', 'fachada', 'impermeabilizante'] },
+  { label: 'Tecnología', emoji: '💻', iconKey: 'tech', keywords: ['computadoras', 'soporte', 'redes', 'software', 'hardware', 'tecnologia', 'software'] },
+  { label: 'Estética', emoji: '✂️', iconKey: 'scissors', keywords: ['estetica', 'cabello', 'corte', 'barberia', 'belleza'] },
+  { label: 'Fletes', emoji: '🚚', iconKey: 'delivery', keywords: ['fletes', 'mudanzas', 'transporte', 'carga'] },
+  { label: 'Seguridad', emoji: '🛡️', iconKey: 'security', keywords: ['seguridad', 'alarmas', 'camaras', 'vigilancia'] },
+  { label: 'Otros', emoji: '🛠️', iconKey: 'wrench', keywords: ['mantenimiento', 'general', 'soldador', 'soldadura'] }
 ];
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -61,7 +61,7 @@ export function ServiceList() {
     fetchProviders();
   }, []);
 
-  // Lógica de filtrado basada en iconKey
+  // Lógica de filtrado avanzada por palabras clave (keywords) e íconos
   const selectedCatObj = CATEGORIES.find(c => c.label === selectedCategory) || CATEGORIES[0];
   
   const filteredProviders = providers.filter((item) => {
@@ -70,11 +70,16 @@ export function ServiceList() {
       item.profession.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.description.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesCategory = 
-      selectedCatObj.iconKey === 'all' || 
-      item.icon === selectedCatObj.iconKey;
+    if (selectedCatObj.iconKey === 'all') return matchesSearch;
 
-    return matchesSearch && matchesCategory;
+    const matchesCategoryIcon = item.icon === selectedCatObj.iconKey;
+    const professionText = `${item.profession} ${item.description}`.toLowerCase();
+    
+    const matchesKeyword = selectedCatObj.keywords.some(keyword => 
+      professionText.includes(keyword)
+    );
+
+    return matchesSearch && (matchesCategoryIcon || matchesKeyword);
   });
 
   return (
