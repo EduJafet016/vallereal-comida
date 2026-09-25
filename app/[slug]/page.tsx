@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import TenantClientView from '@/components/TenantClientView';
 import { Product, ModifierGroup } from '@/types';
 
-// 1. En Next.js 15+, params es una PROMESA, debes tiparla y esperarla
+// params es una PROMESA
 type Props = {
   params: Promise<{ slug: string }>;
 };
@@ -17,7 +17,7 @@ interface RawProductResponse extends Omit<Product, 'modifier_groups'> {
 }
 
 export default async function TenantPage({ params }: Props) {
-  // 2. Await obligatorio de params en las nuevas versiones de Next
+  // 2. Await obligatorio de params
   const resolvedParams = await params;
   const { slug } = resolvedParams;
 
