@@ -7,7 +7,8 @@ import {
   ArrowLeft, Store, Phone, Wrench, Zap, Stethoscope, 
   Droplet, Hammer, Scissors, ShieldAlert, Sparkles, 
   Paintbrush, Car, Key, Laptop, Truck, Save, CheckCircle2,
-  LogOut, Trash2, AlertTriangle, Loader2, MessageSquareText 
+  LogOut, Trash2, AlertTriangle, Loader2, MessageSquareText,
+  Bug, Shirt, BookOpen, ShoppingBag, Dog, Home
 } from 'lucide-react';
 
 interface PageProps {
@@ -39,6 +40,12 @@ const AVAILABLE_ICONS = [
   { id: 'delivery', label: 'Fletes', icon: Truck },
   { id: 'security', label: 'Seguridad', icon: ShieldAlert },
   { id: 'wrench', label: 'General / Oficios', icon: Wrench },
+  { id: 'bug', label: 'Fumigación', icon: Bug },
+  { id: 'shirt', label: 'Costura', icon: Shirt },
+  { id: 'book', label: 'Papelería', icon: BookOpen },
+  { id: 'shopping', label: 'Ventas', icon: ShoppingBag },
+  { id: 'dog', label: 'Mascotas', icon: Dog },
+  { id: 'home', label: 'Mant. General', icon: Home },
 ];
 
 export default function ServiceDashboardPage({ params }: PageProps) {
