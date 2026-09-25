@@ -63,10 +63,16 @@ const COLOR_MAP: Record<string, { bg: string, text: string, border: string }> = 
   delivery: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' },
   security: { bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-100' },
   wrench: { bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200' },
+  // Nuevos colores:
+  bug: { bg: 'bg-lime-50', text: 'text-lime-700', border: 'border-lime-200' },
+  shirt: { bg: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-100' },
+  book: { bg: 'bg-sky-50', text: 'text-sky-600', border: 'border-sky-100' },
+  shopping: { bg: 'bg-fuchsia-50', text: 'text-fuchsia-600', border: 'border-fuchsia-100' },
+  dog: { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-200' },
+  home: { bg: 'bg-teal-50', text: 'text-teal-600', border: 'border-teal-100' },
   default: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-100' }
 };
 
-// Función para normalizar texto (quitar acentos y pasar a minúsculas)
 const normalizeText = (text: string) => {
   return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 };
@@ -82,10 +88,26 @@ export function ServiceList() {
       setLoading(true);
       const { data, error } = await supabase
         .from('service_providers')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*');
 
-      if (!error && data) setProviders(data);
+      if (!error && data) {
+        const myProfile = data.find(p => p.name === 'Edu - Consultoría Tecnológica');
+        
+        const others = data.filter(p => p.name !== 'Edu - Consultoría Tecnológica');
+
+        const shuffledOthers = [...others];
+        for (let i = shuffledOthers.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffledOthers[i], shuffledOthers[j]] = [shuffledOthers[j], shuffledOthers[i]];
+        }
+        
+        // 4. Te inyectamos a ti en la posición 0 de la lista renderizada
+        if (myProfile) {
+          setProviders([myProfile, ...shuffledOthers]);
+        } else {
+          setProviders(shuffledOthers);
+        }
+      }
       setLoading(false);
     }
     fetchProviders();
@@ -94,7 +116,6 @@ export function ServiceList() {
   const selectedCatObj = CATEGORIES.find(c => c.label === selectedCategory) || CATEGORIES[0];
   
   const filteredProviders = providers.filter((item) => {
-    // Búsqueda por texto (Search bar)
     const matchesSearch = 
       normalizeText(item.name).includes(normalizeText(searchQuery)) ||
       normalizeText(item.profession).includes(normalizeText(searchQuery)) ||
@@ -102,14 +123,11 @@ export function ServiceList() {
 
     if (selectedCatObj.iconKey === 'all') return matchesSearch;
 
-    // 1. Coincidencia directa por el ícono asignado (Prioridad Alta)
     const matchesCategoryIcon = item.icon === selectedCatObj.iconKey;
     
-    // 2. Coincidencia por palabra clave usando Expresiones Regulares (Límites de palabra \b)
     const professionText = normalizeText(`${item.profession} ${item.description}`);
     const matchesKeyword = selectedCatObj.keywords.some(keyword => {
       const cleanKeyword = normalizeText(keyword);
-      // Evita falsos positivos. Ej: buscar 'carga' ya no hará match con 'cargadores'
       const regex = new RegExp(`\\b${cleanKeyword}\\b`, 'i');
       return regex.test(professionText);
     });
@@ -120,7 +138,6 @@ export function ServiceList() {
   return (
     <div className="max-w-md mx-auto px-4 pt-6 space-y-5 animate-in fade-in duration-500 relative">
       
-      {/* Buscador Elevado */}
       <div className="relative group">
         <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-blue-600 transition-colors" />
         <input
@@ -132,7 +149,6 @@ export function ServiceList() {
         />
       </div>
 
-      {/* Categorías con Scroll Oculto forzado por CSS Inyectado */}
       <div className="relative">
         <style>{`
           .hide-scroll-x::-webkit-scrollbar { display: none; }
@@ -159,7 +175,6 @@ export function ServiceList() {
         </div>
       </div>
 
-      {/* Lista de Profesionales */}
       <div className="space-y-4">
         {loading ? (
           <div className="text-center py-10 text-xs text-slate-400 animate-pulse">Cargando directorio...</div>
@@ -206,7 +221,6 @@ export function ServiceList() {
         )}
       </div>
       
-      {/* Spacer para forzar el DOM y evitar colisión con el menú flotante */}
       <div className="h-32 w-full shrink-0 pointer-events-none opacity-0"></div>
     </div>
   );
