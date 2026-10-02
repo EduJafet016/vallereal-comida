@@ -17,12 +17,12 @@ export async function GET(request: Request) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: '#065f46', // Fondo esmeralda por defecto
+            backgroundColor: '#065f46',
             position: 'relative',
           }}
         >
-          {/* Logo del negocio ocupando el fondo */}
           {logo ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={logo}
               alt="Logo"
@@ -33,7 +33,6 @@ export async function GET(request: Request) {
               }}
             />
           ) : (
-            // Si no tiene logo, mostramos la inicial en gigante
             <div
               style={{
                 display: 'flex',
@@ -41,45 +40,45 @@ export async function GET(request: Request) {
                 justifyContent: 'center',
                 width: '100%',
                 height: '100%',
-                fontSize: 200,
+                fontSize: 180,
                 color: 'white',
-                fontWeight: 'bold',
+                fontWeight: '900',
+                backgroundColor: '#047857',
               }}
             >
               {name.charAt(0).toUpperCase()}
             </div>
           )}
 
-          {/* Degradado oscuro en la parte inferior para que la letra resalte */}
           <div
             style={{
               position: 'absolute',
               bottom: 0,
               left: 0,
               right: 0,
-              height: '60%',
+              height: '65%',
               background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)',
             }}
           />
 
-          {/* Nombre del local en grande en la parte inferior izquierda */}
           <div
             style={{
               position: 'absolute',
               bottom: 40,
               left: 40,
+              right: 250,
               display: 'flex',
               color: 'white',
-              fontSize: 64,
+              fontSize: 56,
               fontWeight: '900',
               fontFamily: 'sans-serif',
               letterSpacing: '-0.02em',
+              lineHeight: 1.1,
             }}
           >
             {name}
           </div>
 
-          {/* Tu Marca de Agua (App Logo) en la esquina inferior derecha */}
           <div
             style={{
               position: 'absolute',
@@ -88,14 +87,12 @@ export async function GET(request: Request) {
               display: 'flex',
               alignItems: 'center',
               backgroundColor: 'white',
-              padding: '12px 24px',
+              padding: '10px 22px',
               borderRadius: 30,
-              boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
             }}
           >
-            {/* Si tienes un logo chiquito de tu app en public/, puedes usar un <img> aquí. 
-                Por ahora pondremos el texto premium. */}
-            <span style={{ fontSize: 32, fontWeight: '900', color: '#047857', fontFamily: 'sans-serif' }}>
+            <span style={{ fontSize: 26, fontWeight: '900', color: '#047857', fontFamily: 'sans-serif' }}>
               Valle Real
             </span>
           </div>
@@ -103,10 +100,10 @@ export async function GET(request: Request) {
       ),
       {
         width: 1200,
-        height: 630, // Medidas oficiales para tarjetas de WhatsApp/Facebook
+        height: 630,
       }
     );
-  } catch (e) {
-    return new Response('Failed to generate image', { status: 500 });
+  } catch {
+    return new Response('Error generando tarjeta', { status: 500 });
   }
 }
