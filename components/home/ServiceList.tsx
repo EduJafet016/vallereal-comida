@@ -101,7 +101,7 @@ export function ServiceList() {
           [shuffledOthers[i], shuffledOthers[j]] = [shuffledOthers[j], shuffledOthers[i]];
         }
         
-        // 4. Te inyectamos a ti en la posición 0 de la lista renderizada
+        
         if (myProfile) {
           setProviders([myProfile, ...shuffledOthers]);
         } else {

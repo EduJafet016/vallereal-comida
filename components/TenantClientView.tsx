@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   Sparkles,
   PowerOff,
+  Share2
 } from 'lucide-react';
 
 interface Props {
@@ -105,6 +106,27 @@ export default function TenantClientView({
     }
   };
 
+  // --- Web Share API Nativa ---
+  const handleNativeShare = async () => {
+    const shareData = {
+      title: `${tenant.name} en Valle Real`,
+      text: `Revisa el menú de ${tenant.name} y pide a domicilio aquí:`,
+      url: window.location.href,
+    };
+
+    try {
+      if (navigator.share && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareData.url);
+        alert('¡Enlace copiado al portapapeles!');
+      }
+    } catch (err) {
+      // Ignoramos el error si el usuario simplemente canceló el menú nativo
+      console.log('Compartir cancelado o no soportado', err);
+    }
+  };
+
   const isWithinSchedule = isStoreOpen(tenant.opening_time, tenant.closing_time);
   const isOpen = tenant.is_active ?? false;
   const isExtraordinaryService = isOpen && !isWithinSchedule;
@@ -115,7 +137,7 @@ export default function TenantClientView({
       <div className="bg-gradient-to-b from-emerald-800 via-emerald-700 to-teal-700 text-white pt-6 pb-16 px-4 relative overflow-hidden">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-emerald-600/30 rounded-full blur-2xl pointer-events-none" />
         
-        <div className="max-w-md mx-auto space-y-4 relative z-10">
+        <div className="max-w-md mx-auto relative z-10 flex items-center justify-between">
           <Link
             href="/"
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-100 hover:text-white bg-white/10 hover:bg-white/20 px-3.5 py-1.5 rounded-full transition-all border border-white/10 backdrop-blur-md shadow-xs w-fit"
@@ -123,6 +145,14 @@ export default function TenantClientView({
             <ArrowLeft className="w-3.5 h-3.5" />
             Ver más locales
           </Link>
+
+          <button
+            onClick={handleNativeShare}
+            className="inline-flex items-center gap-1.5 text-[11px] font-bold text-white bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-full transition-all border border-white/20 backdrop-blur-md shadow-sm active:scale-95 cursor-pointer"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            Compartir Menú
+          </button>
         </div>
       </div>
 
