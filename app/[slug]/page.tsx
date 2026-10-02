@@ -18,6 +18,7 @@ interface RawProductResponse extends Omit<Product, 'modifier_groups'> {
 }
 
 // 1. GENERACIÓN DE METADATA DINÁMICA (Open Graph para WhatsApp/Facebook)
+// 1. GENERACIÓN DE METADATA DINÁMICA (Open Graph para WhatsApp/Facebook)
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const resolvedParams = await params;
   const { slug } = resolvedParams;
@@ -34,14 +35,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return { title: 'Local no encontrado | Valle Real' };
   }
 
-  // URL base de la aplicación (Fallback para el entorno local)
+  // URL base de la aplicación
   const appUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://vallereal-comida.vercel.app';
   
-  // Apuntamos a la API dinámica generadora de imágenes que creaste
+  // Construcción segura de la URL con codificación estricta para eñes, comillas y acentos
   const ogUrl = new URL(`${appUrl}/api/og`);
-  ogUrl.searchParams.set('name', tenant.name);
+  ogUrl.searchParams.set('name', encodeURIComponent(tenant.name));
+  
   if (tenant.logo_url) {
-    ogUrl.searchParams.set('logo', tenant.logo_url);
+    ogUrl.searchParams.set('logo', encodeURIComponent(tenant.logo_url));
   }
 
   return {
