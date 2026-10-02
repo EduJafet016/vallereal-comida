@@ -1,4 +1,5 @@
 // app/[slug]/page.tsx
+import { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server'; 
 import { notFound } from 'next/navigation';
 import TenantClientView from '@/components/TenantClientView';
@@ -16,8 +17,54 @@ interface RawProductResponse extends Omit<Product, 'modifier_groups'> {
   }[];
 }
 
+// 1. GENERACIÓN DE METADATA DINÁMICA (Open Graph para WhatsApp/Facebook)
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const resolvedParams = await params;
+  const { slug } = resolvedParams;
+  
+  const supabase = await createClient();
+
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('name, description, logo_url')
+    .eq('slug', slug)
+    .single();
+
+  if (!tenant) {
+    return { title: 'Local no encontrado | Valle Real' };
+  }
+
+  // URL base de la aplicación (Fallback para el entorno local)
+  const appUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://vallereal-comida.vercel.app';
+  
+  // Apuntamos a la API dinámica generadora de imágenes que creaste
+  const ogUrl = new URL(`${appUrl}/api/og`);
+  ogUrl.searchParams.set('name', tenant.name);
+  if (tenant.logo_url) {
+    ogUrl.searchParams.set('logo', tenant.logo_url);
+  }
+
+  return {
+    title: `${tenant.name} | Menú en Valle Real`,
+    description: tenant.description || `Pide a domicilio en ${tenant.name} a través de Valle Real sin comisiones.`,
+    openGraph: {
+      title: `${tenant.name} | Menú en Valle Real`,
+      description: tenant.description || `Revisa el menú de ${tenant.name} y pide a domicilio aquí.`,
+      images: [
+        {
+          url: ogUrl.toString(),
+          width: 1200,
+          height: 630,
+          alt: `Menú de ${tenant.name}`,
+        },
+      ],
+    },
+  };
+}
+
+// 2. COMPONENTE PRINCIPAL DE LA PÁGINA
 export default async function TenantPage({ params }: Props) {
-  // 2. Await obligatorio de params
+  // Await obligatorio de params
   const resolvedParams = await params;
   const { slug } = resolvedParams;
 
@@ -74,12 +121,12 @@ export default async function TenantPage({ params }: Props) {
       .order('name', { ascending: true })         // Prioridad 3: Fallback alfabético determinista
   ]);
 
-  // 3. Auditoría de servidor
+  // Auditoría de servidor
   if (catRes.error) console.error("Error de Categorías (¿RLS?):", catRes.error);
   if (prodRes.error) console.error("Error de Productos y Modificadores (¿RLS?):", prodRes.error);
   console.log(`Menú cargado para ${tenant.name} -> Categorías: ${catRes.data?.length || 0} | Productos: ${prodRes.data?.length || 0}`);
 
-  // 4. Mapeo estructural tipado estrictamente (sin usar "any")
+  // Mapeo estructural tipado estrictamente (sin usar "any")
   const rawProducts = (prodRes.data || []) as unknown as RawProductResponse[];
   
   const formattedProducts: Product[] = rawProducts.map((prod) => {
