@@ -6,7 +6,7 @@ import {
   Wrench, Zap, Stethoscope, Droplet, Hammer, 
   Scissors, ShieldAlert, Sparkles, Paintbrush, 
   Car, Key, Laptop, Truck, MessageCircle, Search, Layers,
-  Bug, Shirt, BookOpen, ShoppingBag, Dog, Home
+  Bug, Shirt, BookOpen, ShoppingBag, Dog, Home, Share2
 } from 'lucide-react';
 
 interface ServiceProvider {
@@ -32,7 +32,7 @@ const CATEGORIES = [
   { label: 'Limpieza', emoji: '🧹', iconKey: 'clean', keywords: ['limpieza', 'aseo', 'empleada', 'domestica', 'lavado'] },
   { label: 'Pintura', emoji: '🎨', iconKey: 'paint', keywords: ['pintor', 'pintura', 'fachada', 'impermeabilizante'] },
   { label: 'Tecnología', emoji: '💻', iconKey: 'tech', keywords: ['computadoras', 'soporte', 'redes', 'software', 'hardware', 'tecnologia', 'celulares', 'reparacion'] },
-  { label: 'Estética', emoji: '✂️', iconKey: 'scissors', keywords: ['estetica', 'cabello', 'corte', 'barberia', 'belleza', 'uñas', 'maquillaje'] },
+  { label: 'Estética', emoji: '✂️️', iconKey: 'scissors', keywords: ['estetica', 'cabello', 'corte', 'barberia', 'belleza', 'uñas', 'maquillaje'] },
   { label: 'Ventas por Catálogo', emoji: '🛍️', iconKey: 'shopping', keywords: ['catalogo', 'natura', 'avon', 'vianey', 'ventas', 'blancos', 'edredones'] },
   { label: 'Papelería', emoji: '📚', iconKey: 'book', keywords: ['papeleria', 'impresiones', 'copias', 'escaneo', 'cuadernos'] },
   { label: 'Fletes', emoji: '🚚', iconKey: 'delivery', keywords: ['fletes', 'mudanzas', 'transporte', 'carga'] },
@@ -63,7 +63,6 @@ const COLOR_MAP: Record<string, { bg: string, text: string, border: string }> = 
   delivery: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' },
   security: { bg: 'bg-red-50', text: 'text-red-600', border: 'border-red-100' },
   wrench: { bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200' },
-  // Nuevos colores:
   bug: { bg: 'bg-lime-50', text: 'text-lime-700', border: 'border-lime-200' },
   shirt: { bg: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-100' },
   book: { bg: 'bg-sky-50', text: 'text-sky-600', border: 'border-sky-100' },
@@ -92,7 +91,6 @@ export function ServiceList() {
 
       if (!error && data) {
         const myProfile = data.find(p => p.name === 'Edu - Consultoría Tecnológica');
-        
         const others = data.filter(p => p.name !== 'Edu - Consultoría Tecnológica');
 
         const shuffledOthers = [...others];
@@ -100,7 +98,6 @@ export function ServiceList() {
           const j = Math.floor(Math.random() * (i + 1));
           [shuffledOthers[i], shuffledOthers[j]] = [shuffledOthers[j], shuffledOthers[i]];
         }
-        
         
         if (myProfile) {
           setProviders([myProfile, ...shuffledOthers]);
@@ -112,6 +109,51 @@ export function ServiceList() {
     }
     fetchProviders();
   }, []);
+
+  // Detector de Deep Link y Auto-Scroll
+  useEffect(() => {
+    if (!loading && providers.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const sharedProviderId = params.get('proveedor');
+      
+      if (sharedProviderId) {
+        setTimeout(() => {
+          const element = document.getElementById(`provider-${sharedProviderId}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            element.classList.add('ring-4', 'ring-emerald-400', 'ring-offset-2', 'transition-all', 'duration-1000');
+            
+            setTimeout(() => {
+              element.classList.remove('ring-4', 'ring-emerald-400', 'ring-offset-2');
+            }, 3000);
+          }
+        }, 300);
+      }
+    }
+  }, [loading, providers]);
+
+  // Compartición con inyección de ID en la URL
+  const handleShareService = async (providerId: string, serviceName: string, serviceDescription: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('proveedor', providerId);
+
+    const shareData = {
+      title: `${serviceName} | Servicios Valle Real`,
+      text: `Contacta a ${serviceName} en Valle Real.\n${serviceDescription}\n\nEncuéntralo aquí:`,
+      url: url.toString(), 
+    };
+
+    try {
+      if (navigator.share && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
+        alert('¡Información del servicio copiada al portapapeles!');
+      }
+    } catch (err) {
+      console.debug('Interacción de Web Share cancelada por el usuario o no soportada.', err);
+    }
+  };
 
   const selectedCatObj = CATEGORIES.find(c => c.label === selectedCategory) || CATEGORIES[0];
   
@@ -189,17 +231,31 @@ export function ServiceList() {
             const theme = COLOR_MAP[provider.icon] || COLOR_MAP['default'];
 
             return (
-              <div key={provider.id} className="group bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:border-slate-200 transition-all">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-10 h-10 rounded-2xl ${theme.bg} ${theme.text} border ${theme.border} flex items-center justify-center shrink-0`}>
-                    <IconComponent className="w-5 h-5" />
+              <div 
+                key={provider.id} 
+                id={`provider-${provider.id}`}
+                className="group bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:border-slate-200 transition-all"
+              >
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-10 h-10 rounded-2xl ${theme.bg} ${theme.text} border ${theme.border} flex items-center justify-center shrink-0`}>
+                      <IconComponent className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-black text-slate-900 truncate">{provider.name}</h3>
+                      <span className={`text-[10px] font-bold ${theme.text} ${theme.bg} px-2 py-0.5 rounded-full inline-block mt-0.5 truncate max-w-full`}>
+                        {provider.profession}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-black text-slate-900 truncate">{provider.name}</h3>
-                    <span className={`text-[10px] font-bold ${theme.text} ${theme.bg} px-2 py-0.5 rounded-full inline-block mt-0.5 truncate max-w-full`}>
-                      {provider.profession}
-                    </span>
-                  </div>
+
+                  <button
+                    onClick={() => handleShareService(provider.id, provider.name, provider.description)}
+                    className="p-2 -mr-2 -mt-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all active:scale-95 shrink-0"
+                    title={`Compartir ${provider.name}`}
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
                 </div>
                 
                 <p className="text-[11px] text-slate-500 leading-relaxed mb-4 font-medium line-clamp-3">
