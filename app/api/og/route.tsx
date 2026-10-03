@@ -2,7 +2,6 @@ import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
 
-// Mapeo de emojis para servicios
 const EMOJI_MAP: Record<string, string> = {
   plumbing: '🚰', zap: '⚡', medical: '🩺', hammer: '🪵',
   lock: '🔐', car: '🔧', clean: '🧹', paint: '🎨',
@@ -23,6 +22,8 @@ export async function GET(request: Request) {
 
     const logo = searchParams.get('logo');
     const iconKey = searchParams.get('icon');
+    
+    // Determinamos qué mostrar al centro: Logo de imagen > Emoji de categoría > Emoji por defecto
     const emoji = iconKey && EMOJI_MAP[iconKey] ? EMOJI_MAP[iconKey] : '🛠️';
 
     return new ImageResponse(
