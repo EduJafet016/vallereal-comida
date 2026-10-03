@@ -1,193 +1,67 @@
-'use client';
-
-import { useEffect, useState } from 'react';
+import { Metadata } from 'next';
 import { supabase } from '@/lib/supabase';
-import { BeforeInstallPromptEvent, NavigatorStandalone, TenantWithMenu } from '@/types';
-import { Search, Heart } from 'lucide-react';
-import { AuthModal } from '@/app/components/AuthModal';
-import { HomeHeader } from '@/components/home/HomeHeader';
-import { TenantList } from '@/components/home/TenantList';
-import { FloatingToggle } from '@/components/ui/FloatingToggle';
-import { ServiceList } from '@/components/home/ServiceList';
+import RootHomePage from './HomeClient';
 
-export default function RootHomePage() {
-  const [tenants, setTenants] = useState<TenantWithMenu[]>([]);
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
-  
-  // Inicialización limpia del estado en O(1) render, evaluando URL y LocalStorage
-  const [activeTab, setActiveTab] = useState<'comidas' | 'servicios'>(() => {
-    if (typeof window === 'undefined') return 'comidas'; // Evita errores de SSR en Next.js
+type Props = {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+};
 
-    // Prioridad 1: Deep Linking (Si trae el parámetro, renderizamos servicios directamente)
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('proveedor')) {
-      return 'servicios';
-    }
+// 1. GENERACIÓN DE METADATA EN EL SERVIDOR ANTES DE CARGAR LA PÁGINA
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  const resolvedParams = await searchParams;
+  const proveedorId = resolvedParams.proveedor as string | undefined;
 
-    // Prioridad 2: Memoria de sesión (Navegación previa)
-    const savedTab = localStorage.getItem('valle_real_active_tab');
-    if (savedTab === 'servicios') {
-      localStorage.removeItem('valle_real_active_tab');
-      return 'servicios';
-    }
+  const appUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://vallereal-comida.vercel.app';
 
-    // Default
-    return 'comidas';
-  });
-
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstalled, setIsInstalled] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return (
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as NavigatorStandalone).standalone === true
-    );
-  });
-
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
+  // Si no hay proveedor en la URL, devolvemos la Metadata global estática
+  if (!proveedorId) {
+    return {
+      title: 'Valle Real | Directorio Local',
+      description: 'Encuentra comida a domicilio y servicios profesionales de confianza en tu comunidad.',
+      openGraph: {
+        title: 'Valle Real | Directorio Local',
+        description: 'Encuentra comida a domicilio y servicios profesionales de confianza en tu comunidad.',
+      },
     };
+  }
 
-    const handleAppInstalled = () => {
-      setIsInstalled(true);
-      setDeferredPrompt(null);
-    };
+  // Si es un enlace compartido de un servicio, buscamos su info
+  const { data: provider } = await supabase
+    .from('service_providers')
+    .select('name, profession, description')
+    .eq('id', proveedorId)
+    .single();
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
+  // Fallback de seguridad
+  if (!provider) {
+    return { title: 'Servicio no encontrado | Valle Real' };
+  }
 
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
-    };
-  }, []);
+  // Llamamos a tu API dinámica (la misma que usamos para restaurantes)
+  // Como los servicios no tienen 'logo_url', la API automáticamente usará la Inicial gigante con el fondo esmeralda
+  const ogUrl = new URL(`${appUrl}/api/og`);
+  ogUrl.searchParams.set('name', encodeURIComponent(provider.name));
 
-  const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setDeferredPrompt(null);
-      }
-    } else {
-      alert(
-        "Para instalar la app:\n\n• En Android/Chrome: Abre el menú de los 3 puntos y selecciona 'Instalar aplicación' o 'Agregar a la pantalla principal'.\n• En iPhone/Safari: Toca el botón de Compartir y selecciona 'Agregar a inicio'."
-      );
-    }
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchTenants() {
-      try {
-        const { data, error } = await supabase
-          .from('tenants')
-          .select(`
-            *,
-            products(name, description),
-            categories(name)
-          `)
-          .order('name');
-
-        if (cancelled) return;
-        if (error) throw error;
-        
-        setTenants(data || []);
-      } catch (err) {
-        console.error('Error cargando locales con menús:', err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    void fetchTenants();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    const channel = supabase
-      .channel('realtime-directory')
-      .on(
-        'postgres_changes',
+  return {
+    title: `${provider.name} | Servicios Valle Real`,
+    description: provider.description || `Contacta a ${provider.name} en Valle Real.`,
+    openGraph: {
+      title: `${provider.name} | Servicios Valle Real`,
+      description: provider.description || `Contacta a ${provider.name} en Valle Real.`,
+      images: [
         {
-          event: '*',
-          schema: 'public',
-          table: 'tenants',
+          url: ogUrl.toString(),
+          width: 1200,
+          height: 630,
+          alt: provider.name,
         },
-        (payload) => {
-          if (payload.eventType === 'UPDATE') {
-            setTenants((prev) =>
-              prev.map((t) =>
-                t.id === payload.new.id ? { ...t, ...payload.new } : t
-              )
-            );
-          } else if (payload.eventType === 'INSERT') {
-            setTenants((prev) => [...prev, payload.new as TenantWithMenu]);
-          } else if (payload.eventType === 'DELETE') {
-            setTenants((prev) => prev.filter((t) => t.id !== payload.old.id));
-          }
-        }
-      )
-      .subscribe();
+      ],
+    },
+  };
+}
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  return (
-    <main className="min-h-screen bg-slate-50/60 flex flex-col justify-between pb-24 relative">
-      <div>
-        <HomeHeader
-          activeTab={activeTab}
-          isInstalled={isInstalled}
-          onInstallClick={handleInstallClick}
-        />
-
-        {activeTab === 'comidas' ? (
-          <>
-            {/* BARRA DE BÚSQUEDA STICKY */}
-            <div className="sticky top-0 z-40 bg-slate-50/90 backdrop-blur-md py-3 px-4 shadow-xs">
-              <div className="max-w-md mx-auto relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-4 top-3.5 z-10 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Buscar negocio, categoría o platillo..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 bg-white text-slate-900 placeholder:text-slate-400 rounded-2xl text-xs font-medium shadow-md shadow-black/5 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all border border-slate-200/80"
-                />
-              </div>
-            </div>
-
-            <TenantList tenants={tenants} loading={loading} searchQuery={search} />
-          </>
-        ) : (
-          <ServiceList />
-        )}
-
-        <div className="pt-8 pb-4 text-center space-y-1 max-w-md mx-auto px-4">
-          <p className="text-xs font-semibold text-slate-400 flex items-center justify-center gap-1">
-            Hecho con <Heart className="w-3 h-3 text-rose-500 fill-rose-500" /> para Valle Real by EduJafet016
-          </p>
-          <p className="text-[10px] text-slate-400">
-            Apoya el comercio local.
-          </p>
-        </div>
-      </div>
-
-      {/* INYECCIÓN DEL FLOATING TOGGLE */}
-      <FloatingToggle activeTab={activeTab} onChange={setActiveTab} />
-      
-      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
-    </main>
-  );
+// 2. RENDERIZADO DE LA INTERFAZ DE CLIENTE
+export default function Page() {
+  // Renderizamos el componente que acabas de renombrar
+  return <RootHomePage />;
 }
