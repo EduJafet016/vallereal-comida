@@ -1,35 +1,26 @@
 import { ImageResponse } from 'next/og';
-import { 
-  Wrench, Zap, Stethoscope, Droplet, Hammer, 
-  Scissors, ShieldAlert, Sparkles, Paintbrush, 
-  Car, Key, Laptop, Truck, Bug, Shirt, BookOpen, ShoppingBag, Dog, Home
-} from 'lucide-react';
 
 export const runtime = 'edge';
-
-const ICON_MAP: Record<string, React.ElementType> = {
-  plumbing: Droplet, zap: Zap, medical: Stethoscope, hammer: Hammer,
-  lock: Key, car: Car, clean: Sparkles, paint: Paintbrush,
-  tech: Laptop, scissors: Scissors, delivery: Truck,
-  security: ShieldAlert, wrench: Wrench,
-  bug: Bug, shirt: Shirt, book: BookOpen, shopping: ShoppingBag, dog: Dog, home: Home
-};
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     
-    // Obtenemos el nombre (y parcheamos con decodeURIComponent por si acaso algún cliente viejo lo manda doble)
-    let rawName = searchParams.get('name') || 'Servicio en Valle Real';
-    if (rawName.includes('%20')) {
-      rawName = decodeURIComponent(rawName);
-    }
-    const name = rawName.slice(0, 50);
-
+    // El método get() ya decodifica internamente la URL, leyendo nombres con espacios perfectos.
+    const name = searchParams.get('name')?.slice(0, 50) || 'Local en Valle Real';
     const logo = searchParams.get('logo');
-    const iconKey = searchParams.get('icon');
-    
-    const IconComponent = iconKey && ICON_MAP[iconKey] ? ICON_MAP[iconKey] : null;
+
+    // Algoritmo de Iniciales Corporativas (Google/Vercel Style)
+    const getInitials = (text: string) => {
+      // Limpiamos guiones y símbolos para enfocarnos en las letras reales
+      const cleanText = text.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ]/g, '').trim();
+      const words = cleanText.split(/\s+/);
+      
+      if (words.length >= 2 && words[0] && words[1]) {
+        return (words[0][0] + words[1][0]).toUpperCase();
+      }
+      return cleanText.substring(0, 2).toUpperCase() || 'VR';
+    };
 
     return new ImageResponse(
       (
@@ -62,14 +53,9 @@ export async function GET(request: Request) {
                 backgroundColor: '#047857',
               }}
             >
-              {IconComponent ? (
-                // Dibujamos el SVG de Lucide en gigante
-                <IconComponent width={250} height={250} color="rgba(255,255,255,0.9)" />
-              ) : (
-                <div style={{ fontSize: 200, color: 'white', fontWeight: '900' }}>
-                  {name.charAt(0).toUpperCase()}
-                </div>
-              )}
+              <div style={{ fontSize: 180, color: 'white', fontWeight: '900', letterSpacing: '-0.05em' }}>
+                {getInitials(name)}
+              </div>
             </div>
           )}
 
