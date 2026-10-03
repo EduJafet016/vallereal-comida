@@ -2,43 +2,27 @@ import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
 
-// Mapeo directo de emojis profesionales para cada categoría de servicio
+// Mapeo de emojis para servicios
 const EMOJI_MAP: Record<string, string> = {
-  plumbing: '🚰',
-  zap: '⚡',
-  medical: '🩺',
-  hammer: '🪵',
-  lock: '🔐',
-  car: '🔧',
-  clean: '🧹',
-  paint: '🎨',
-  tech: '💻',
-  scissors: '✂️',
-  delivery: '🚚',
-  security: '🛡️',
-  wrench: '🛠️',
-  bug: '🐜',
-  shirt: '🧵',
-  book: '📚',
-  shopping: '🛍️',
-  dog: '🐕',
-  home: '🏠',
+  plumbing: '🚰', zap: '⚡', medical: '🩺', hammer: '🪵',
+  lock: '🔐', car: '🔧', clean: '🧹', paint: '🎨',
+  tech: '💻', scissors: '✂️', delivery: '🚚', security: '🛡️',
+  wrench: '🛠️', bug: '🐜', shirt: '🧵', book: '📚',
+  shopping: '🛍️', dog: '🐕', home: '🏠',
 };
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     
-    let rawName = searchParams.get('name') || 'Servicio en Valle Real';
-    if (rawName.includes('%20')) {
+    let rawName = searchParams.get('name') || 'Valle Real';
+    if (rawName && rawName.includes('%20')) {
       rawName = decodeURIComponent(rawName);
     }
     const name = rawName.slice(0, 50);
 
     const logo = searchParams.get('logo');
     const iconKey = searchParams.get('icon');
-    
-    // Obtenemos el emoji correspondiente o usamos una herramienta por defecto 🛠️
     const emoji = iconKey && EMOJI_MAP[iconKey] ? EMOJI_MAP[iconKey] : '🛠️';
 
     return new ImageResponse(
@@ -59,7 +43,11 @@ export async function GET(request: Request) {
             <img
               src={logo}
               alt="Logo"
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+              }}
             />
           ) : (
             <div
@@ -69,15 +57,15 @@ export async function GET(request: Request) {
                 justifyContent: 'center',
                 width: '100%',
                 height: '100%',
+                fontSize: 150,
                 backgroundColor: '#047857',
-                fontSize: 160, // Emoji en gigante tamaño corporativo
               }}
             >
               {emoji}
             </div>
           )}
 
-          {/* Degradado inferior para resaltar texto */}
+          {/* Degradado inferior */}
           <div
             style={{
               position: 'absolute',
@@ -89,7 +77,7 @@ export async function GET(request: Request) {
             }}
           />
 
-          {/* Nombre del servicio */}
+          {/* Nombre */}
           <div
             style={{
               position: 'absolute',
@@ -108,7 +96,7 @@ export async function GET(request: Request) {
             {name}
           </div>
 
-          {/* Marca de agua Valle Real */}
+          {/* Marca de agua */}
           <div
             style={{
               position: 'absolute',
