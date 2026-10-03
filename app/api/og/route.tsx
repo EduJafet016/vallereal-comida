@@ -20,9 +20,14 @@ export async function GET(request: Request) {
     }
     const name = rawName.slice(0, 50);
 
-    const logo = searchParams.get('logo');
+    let logo = searchParams.get('logo');
     const iconKey = searchParams.get('icon');
     const emoji = iconKey && EMOJI_MAP[iconKey] ? EMOJI_MAP[iconKey] : '🛠️';
+
+    // Blindaje: Si el logo viene incompleto (ej. ruta relativa), lo ignoramos para evitar que crashee
+    if (logo && !logo.startsWith('http')) {
+      logo = null;
+    }
 
     return new ImageResponse(
       (
@@ -58,9 +63,10 @@ export async function GET(request: Request) {
                 height: '100%',
                 fontSize: 150,
                 backgroundColor: '#047857',
+                color: 'white',
               }}
             >
-              {emoji}
+              {name && !iconKey ? name.charAt(0).toUpperCase() : emoji}
             </div>
           )}
 
