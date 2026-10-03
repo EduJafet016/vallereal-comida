@@ -26,9 +26,9 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   }
 
   // Si es un enlace compartido de un servicio, buscamos su info
-  const { data: provider } = await supabase
+const { data: provider } = await supabase
     .from('service_providers')
-    .select('name, profession, description')
+    .select('name, profession, description, icon')
     .eq('id', proveedorId)
     .single();
 
@@ -37,10 +37,16 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
     return { title: 'Servicio no encontrado | Valle Real' };
   }
 
-  // Llamamos a tu API dinámica (la misma que usamos para restaurantes)
-  // Como los servicios no tienen 'logo_url', la API automáticamente usará la Inicial gigante con el fondo esmeralda
   const ogUrl = new URL(`${appUrl}/api/og`);
-  ogUrl.searchParams.set('name', encodeURIComponent(provider.name));
+  
+  // URLSearchParams.set() aplica internamente su propia codificación URI. 
+  // Omitimos encodeURIComponent() para evitar una doble codificación que exponga '%' en los clientes.
+  ogUrl.searchParams.set('name', provider.name);
+  
+  // Pasamos la clave del ícono para que el motor de Satori lo renderice
+  if (provider.icon) {
+    ogUrl.searchParams.set('icon', provider.icon);
+  }
 
   return {
     title: `${provider.name} | Servicios Valle Real`,

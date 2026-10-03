@@ -1,12 +1,35 @@
 import { ImageResponse } from 'next/og';
+import { 
+  Wrench, Zap, Stethoscope, Droplet, Hammer, 
+  Scissors, ShieldAlert, Sparkles, Paintbrush, 
+  Car, Key, Laptop, Truck, Bug, Shirt, BookOpen, ShoppingBag, Dog, Home
+} from 'lucide-react';
 
 export const runtime = 'edge';
+
+const ICON_MAP: Record<string, React.ElementType> = {
+  plumbing: Droplet, zap: Zap, medical: Stethoscope, hammer: Hammer,
+  lock: Key, car: Car, clean: Sparkles, paint: Paintbrush,
+  tech: Laptop, scissors: Scissors, delivery: Truck,
+  security: ShieldAlert, wrench: Wrench,
+  bug: Bug, shirt: Shirt, book: BookOpen, shopping: ShoppingBag, dog: Dog, home: Home
+};
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const name = searchParams.get('name')?.slice(0, 50) || 'Local en Valle Real';
+    
+    // Obtenemos el nombre (y parcheamos con decodeURIComponent por si acaso algún cliente viejo lo manda doble)
+    let rawName = searchParams.get('name') || 'Servicio en Valle Real';
+    if (rawName.includes('%20')) {
+      rawName = decodeURIComponent(rawName);
+    }
+    const name = rawName.slice(0, 50);
+
     const logo = searchParams.get('logo');
+    const iconKey = searchParams.get('icon');
+    
+    const IconComponent = iconKey && ICON_MAP[iconKey] ? ICON_MAP[iconKey] : null;
 
     return new ImageResponse(
       (
@@ -26,11 +49,7 @@ export async function GET(request: Request) {
             <img
               src={logo}
               alt="Logo"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-              }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
           ) : (
             <div
@@ -40,13 +59,17 @@ export async function GET(request: Request) {
                 justifyContent: 'center',
                 width: '100%',
                 height: '100%',
-                fontSize: 180,
-                color: 'white',
-                fontWeight: '900',
                 backgroundColor: '#047857',
               }}
             >
-              {name.charAt(0).toUpperCase()}
+              {IconComponent ? (
+                // Dibujamos el SVG de Lucide en gigante
+                <IconComponent width={250} height={250} color="rgba(255,255,255,0.9)" />
+              ) : (
+                <div style={{ fontSize: 200, color: 'white', fontWeight: '900' }}>
+                  {name.charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
           )}
 
