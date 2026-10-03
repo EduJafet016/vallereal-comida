@@ -3,13 +3,12 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { BeforeInstallPromptEvent, NavigatorStandalone, TenantWithMenu } from '@/types';
-import { Search, Heart, } from 'lucide-react';
+import { Search, Heart } from 'lucide-react';
 import { AuthModal } from '@/app/components/AuthModal';
 import { HomeHeader } from '@/components/home/HomeHeader';
 import { TenantList } from '@/components/home/TenantList';
 import { FloatingToggle } from '@/components/ui/FloatingToggle';
 import { ServiceList } from '@/components/home/ServiceList';
-
 
 export default function RootHomePage() {
   const [tenants, setTenants] = useState<TenantWithMenu[]>([]);
@@ -17,26 +16,26 @@ export default function RootHomePage() {
   const [loading, setLoading] = useState(true);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   
-  // Inicialización limpia del estado leyendo el localStorage sin disparar efectos en cascada
+  // Inicialización limpia del estado en O(1) render, evaluando URL y LocalStorage
   const [activeTab, setActiveTab] = useState<'comidas' | 'servicios'>(() => {
-    if (typeof window === 'undefined') return 'comidas';
+    if (typeof window === 'undefined') return 'comidas'; // Evita errores de SSR en Next.js
+
+    // Prioridad 1: Deep Linking (Si trae el parámetro, renderizamos servicios directamente)
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('proveedor')) {
+      return 'servicios';
+    }
+
+    // Prioridad 2: Memoria de sesión (Navegación previa)
     const savedTab = localStorage.getItem('valle_real_active_tab');
     if (savedTab === 'servicios') {
       localStorage.removeItem('valle_real_active_tab');
       return 'servicios';
     }
+
+    // Default
     return 'comidas';
   });
-
-  // NUEVO: Interceptor de Deep Linking para forzar la pestaña de Servicios
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('proveedor')) {
-        setActiveTab('servicios');
-      }
-    }
-  }, []);
 
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(() => {
