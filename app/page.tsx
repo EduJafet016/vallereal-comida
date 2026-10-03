@@ -28,6 +28,16 @@ export default function RootHomePage() {
     return 'comidas';
   });
 
+  // NUEVO: Interceptor de Deep Linking para forzar la pestaña de Servicios
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('proveedor')) {
+        setActiveTab('servicios');
+      }
+    }
+  }, []);
+
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(() => {
     if (typeof window === 'undefined') return false;
